@@ -1,0 +1,1652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}</style>
+</head>
+<body>
+<title>Trip Voucher Helper</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a two-pane field desk. Left = the helper chat (questions + receipt drop). Right = the trip packet, worked in four real steps: Trip, Receipts, Review, Packet. Phones get a Chat / Packet switch. */
+:root{
+  --bg:#EDF1EF; --surface:#FFFFFF; --sunk:#E3E9E6; --ink:#15211D; --muted:#5A6964; --line:#CBD5D1;
+  --accent:#0E5E5A; --accent-ink:#FFFFFF; --accent-soft:#D5EAE7;
+  --signal:#C24E12; --signal-soft:#FBE6D9;
+  --ok:#2C7A3C; --ok-soft:#DDF0E0; --warn:#9A5A00; --warn-soft:#FBEBD1; --bad:#B42318; --bad-soft:#FBE1DE;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,-apple-system,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1614; --surface:#17211E; --sunk:#1E2A26; --ink:#E4EBE8; --muted:#93A39D; --line:#2D3B36;
+  --accent:#5CC2B8; --accent-ink:#06201E; --accent-soft:#17332F;
+  --signal:#F08A4B; --signal-soft:#3B2316;
+  --ok:#6CC17D; --ok-soft:#173222; --warn:#E7A84A; --warn-soft:#3A2A12; --bad:#F2877C; --bad-soft:#3D1C19;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1614; --surface:#17211E; --sunk:#1E2A26; --ink:#E4EBE8; --muted:#93A39D; --line:#2D3B36;
+  --accent:#5CC2B8; --accent-ink:#06201E; --accent-soft:#17332F;
+  --signal:#F08A4B; --signal-soft:#3B2316;
+  --ok:#6CC17D; --ok-soft:#173222; --warn:#E7A84A; --warn-soft:#3A2A12; --bad:#F2877C; --bad-soft:#3D1C19;
+  color-scheme:dark}
+
+[hidden]{display:none!important}
+html{height:100%;box-sizing:border-box}
+body{height:100%;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.top,.mswitch{flex:none}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0}
+.num,td.n,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.top{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);background:var(--surface)}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand svg{flex:none}
+.brand h1{font-size:22px;line-height:1.1}
+.brand small{display:block;color:var(--muted);font-size:13px;font-family:var(--f-body)}
+.privacy{margin-left:auto;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.privacy b{color:var(--ink);font-weight:600}
+
+.mswitch{display:none}
+.app{display:grid;grid-template-columns:minmax(320px,420px) minmax(0,1fr);flex:1;min-height:0}
+.chat{display:flex;flex-direction:column;border-right:1px solid var(--line);min-height:0;background:var(--surface)}
+.log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0}
+.msg{max-width:92%;padding:10px 12px;border-radius:12px;font-size:15px;min-width:0;overflow-wrap:anywhere}
+.msg p{margin:0 0 6px}.msg p:last-child{margin-bottom:0}
+.msg ul,.msg ol{margin:4px 0 6px;padding-left:20px}
+.msg code{font-family:var(--f-mono);font-size:13px;background:var(--sunk);padding:1px 5px;border-radius:4px}
+.bot{background:var(--sunk);border-top-left-radius:4px;align-self:flex-start}
+.user{background:var(--accent);color:var(--accent-ink);border-top-right-radius:4px;align-self:flex-end}
+.user code{background:color-mix(in srgb,var(--accent-ink) 18%,transparent)}
+.who{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:2px;letter-spacing:.04em;text-transform:uppercase}
+.acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.thinking{color:var(--muted);font-style:italic}
+.chips{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding:8px 16px 4px;scrollbar-width:thin}
+.chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 11px;font-size:13.5px;cursor:pointer}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.composer{display:flex;gap:8px;align-items:flex-end;padding:10px 16px 14px;border-top:1px solid var(--line);margin-top:8px}
+.composer textarea{flex:1;min-width:0;resize:none;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:9px 11px;min-height:42px;max-height:140px}
+.iconbtn{flex:none;width:42px;height:42px;border-radius:10px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;cursor:pointer}
+.iconbtn:hover{border-color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;border:1px solid var(--line);background:var(--surface);padding:7px 13px;font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.small{padding:4px 9px;font-size:13px}
+.btn.danger{color:var(--bad)}
+
+.work{display:flex;flex-direction:column;min-height:0;min-width:0}
+.steps{display:flex;gap:0;border-bottom:1px solid var(--line);background:var(--bg);overflow-x:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.step{display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border:0;background:none;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;color:var(--muted);font-weight:600}
+.step .dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-mono);font-size:12px;background:var(--sunk);color:var(--muted)}
+.step[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.step[aria-selected="true"] .dot{background:var(--accent);color:var(--accent-ink)}
+.step.done .dot{background:var(--ok-soft);color:var(--ok)}
+.step .cnt{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.panel{flex:1;overflow-y:auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));min-height:0}
+.pin{max-width:1060px;display:flex;flex-direction:column;gap:18px}
+.lede{color:var(--muted);max-width:68ch;margin:0}
+.panel h2{font-size:26px}
+.panel h3{font-size:18px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted);min-width:0}
+label.f input,label.f select{font-weight:400;font-size:15px;color:var(--ink);border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:7px 9px;min-width:0;width:100%}
+label.f input:focus,label.f select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.hint{font-size:12.5px;color:var(--muted);font-weight:400}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:14px}
+.check input{margin-top:4px}
+a{color:var(--accent)}
+
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--sunk);white-space:nowrap}
+td.n,th.n{text-align:right;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tr.mie td{color:var(--muted)}
+tfoot td{font-weight:700;background:var(--sunk)}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
+.stat{background:var(--sunk);border-radius:6px;padding:10px 12px;min-width:0}
+.stat span{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.stat b{font-family:var(--f-mono);font-size:19px;font-weight:500}
+
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:22px;text-align:center;background:var(--surface);display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop strong{font-family:var(--f-display);font-size:20px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);display:grid;grid-template-columns:104px minmax(0,1fr);gap:12px;padding:12px;min-width:0}
+.card.flag{border-color:var(--warn)}
+.card.bad{border-color:var(--bad)}
+.thumb{width:104px;height:136px;border-radius:6px;background:var(--sunk);overflow:hidden;cursor:zoom-in;border:1px solid var(--line);padding:0;position:relative}
+.thumb img{width:100%;height:100%;object-fit:cover;object-position:top}
+.thumb .pg{position:absolute;right:4px;bottom:4px;background:var(--ink);color:var(--bg);font-size:11px;padding:0 5px;border-radius:4px;font-family:var(--f-mono)}
+.cardf{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0}
+.cardf .wide{grid-column:1/-1}
+.cardf label.f input,.cardf label.f select{padding:5px 7px;font-size:14px}
+.cardh{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
+.cardh .fn{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.tags{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.ai{background:var(--accent-soft);color:var(--accent)}
+.thumb.noimg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;border:2px dashed var(--bad);color:var(--bad);font-size:12px;font-weight:600;text-align:center;padding:6px}
+details.more{grid-column:1/-1;border-top:1px solid var(--line);padding-top:6px}
+details.more summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)}
+details.more .cardf{margin-top:8px}
+.books{display:flex;flex-wrap:wrap;gap:6px}
+
+.checks{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.checks li{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:6px;font-size:14px}
+.checks li.bad{background:var(--bad-soft)}
+.checks li.warn{background:var(--warn-soft)}
+.checks li.ok{background:var(--ok-soft)}
+.checks li b{flex:none;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding-top:2px;min-width:58px}
+.checks li.bad b{color:var(--bad)}.checks li.warn b{color:var(--warn)}.checks li.ok b{color:var(--ok)}
+
+.pages{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+.pages figure{margin:0;flex:none;width:120px;display:flex;flex-direction:column;gap:4px}
+.pages img{width:120px;height:156px;object-fit:cover;object-position:top;border:1px solid var(--line);border-radius:4px;background:#fff}
+.pages figcaption{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fname{font-family:var(--f-mono);font-size:15px;background:var(--sunk);padding:6px 10px;border-radius:6px;overflow-wrap:anywhere}
+.dl{display:flex;flex-wrap:wrap;gap:8px}
+.status{font-size:14px;color:var(--muted)}
+.status.err{color:var(--bad)}
+
+.overlay{position:fixed;inset:0;background:color-mix(in srgb,var(--accent) 22%,transparent);display:grid;place-items:center;z-index:50;pointer-events:none}
+.overlay div{background:var(--surface);border:2px dashed var(--accent);border-radius:12px;padding:28px 36px;font-family:var(--f-display);font-size:24px}
+.lightbox{position:fixed;inset:0;background:rgba(8,12,11,.82);z-index:60;display:flex;flex-direction:column;align-items:center;gap:10px;overflow:auto;padding-block:max(16px,env(safe-area-inset-top,0px)) 24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.lightbox img{max-width:min(900px,100%);background:#fff;border-radius:4px}
+.lightbox .btn{position:sticky;top:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+@media (max-width:900px){
+  .app{display:flex;flex-direction:column}
+  .chat,.work{flex:1;min-height:0}
+  .mswitch{display:flex;gap:6px;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--bg);border-bottom:1px solid var(--line)}
+  .mswitch button{flex:1}
+  .mswitch button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .chat{border-right:0}
+  .brand small{display:none}
+  .brand h1{font-size:20px}
+  .top{gap:6px;padding-block:8px}
+  .privacy{margin-left:0;width:100%;font-size:12.5px}
+  .card{grid-template-columns:84px minmax(0,1fr)}
+  .thumb{width:84px;height:112px}
+}
+@media (max-width:420px){.cardf{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<header class="top">
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="1" y="1" width="32" height="32" rx="7" fill="var(--accent)"/><path d="M10 9h14v17l-2.3-1.6L19.4 26l-2.4-1.6L14.6 26l-2.3-1.6L10 26z" fill="var(--accent-ink)"/><path d="M13 14h8M13 18h5" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <div><h1>Trip Voucher Helper</h1><small>Questions answered, receipts sorted, one PDF for your expense report</small></div>
+  </div>
+  <div class="privacy"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="6" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span>Receipts stay <b>in this browser tab</b>. Nothing is uploaded unless you press “Read receipts”.</span></div>
+</header>
+
+<div class="mswitch" role="group" aria-label="View">
+  <button class="btn" id="mChat" aria-pressed="true">Chat</button>
+  <button class="btn" id="mWork" aria-pressed="false">Trip packet</button>
+</div>
+
+<main class="app">
+  <section class="chat" id="chatPane" aria-label="Helper chat">
+    <div class="log" id="log" aria-live="polite"></div>
+    <div class="chips" id="chips"></div>
+    <form class="composer" id="composer">
+      <label class="iconbtn" title="Add receipts" for="fileIn"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M13.5 6.5 7.6 12.4a1.6 1.6 0 0 0 2.3 2.3l6-6a3.2 3.2 0 0 0-4.6-4.6l-6 6a4.8 4.8 0 0 0 6.8 6.8l4.4-4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">Add receipts</span></label>
+      <input type="file" id="fileIn" class="sr" multiple accept="image/*,.heic,.heif,application/pdf,.pdf,.xlsx,.zip">
+      <textarea id="msg" rows="1" placeholder="Ask about the voucher process, or drop receipts here"></textarea>
+      <button class="btn primary" id="sendBtn" type="submit">Send</button>
+    </form>
+  </section>
+
+  <section class="work" id="workPane" aria-label="Trip packet">
+    <div class="steps" role="tablist">
+      <button class="step" role="tab" data-tab="trip" aria-selected="true"><span class="dot">1</span>Trip</button>
+      <button class="step" role="tab" data-tab="receipts" aria-selected="false"><span class="dot">2</span>Receipts <span class="cnt" id="rcCount">0</span></button>
+      <button class="step" role="tab" data-tab="review" aria-selected="false"><span class="dot">3</span>Review <span class="cnt" id="ckCount"></span></button>
+      <button class="step" role="tab" data-tab="packet" aria-selected="false"><span class="dot">4</span>Packet</button>
+    </div>
+
+    <!-- 1 TRIP -->
+    <div class="panel" id="tab-trip" role="tabpanel">
+      <div class="pin">
+        <div><h2>Trip details</h2><p class="lede">These set the per diem math and the PDF name. Look up your rates on <a href="https://www.gsa.gov/travel/plan-book/per-diem-rates" target="_blank" rel="noopener">gsa.gov per diem rates</a> by ZIP for the month you travel.</p></div>
+        <div class="box">
+          <h3>Trip trackers</h3>
+          <p class="hint" style="margin:0">Picking up a trip you started? Load your <b>Travel</b> and <b>Overhead</b> tracker spreadsheets (in Google Sheets: File → Download → Microsoft Excel .xlsx) and your receipts .zip. First trip? Skip this. Your trackers are made for you when you save.</p>
+          <div class="dl"><label class="btn" for="bookIn">Load trackers or receipts .zip</label><input type="file" id="bookIn" class="sr" multiple accept=".xlsx,.zip,application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
+          <div class="books" id="bookStatus"></div>
+        </div>
+        <div class="box">
+          <h3>You</h3>
+          <div class="grid">
+            <label class="f">First name<input id="t-first" autocomplete="given-name"></label>
+            <label class="f">Last name<input id="t-last" autocomplete="family-name"></label>
+            <label class="f">Expense report number<input id="t-report" inputmode="numeric" placeholder="e.g. 12345"><span class="hint">From Unanet, after you create the report</span></label>
+          </div>
+        </div>
+        <div class="box">
+          <h3>Trip</h3>
+          <div class="grid">
+            <label class="f">Location<input id="t-loc" placeholder="City, ST"></label>
+            <label class="f">First travel day<input id="t-start" type="date"></label>
+            <label class="f">Last travel day<input id="t-end" type="date"></label>
+            <label class="f">Trip ID<input id="t-tripId" placeholder="Filled in when you save" autocomplete="off"><span class="hint">Matches the Trip ID in your trackers</span></label>
+            <label class="f">Client / project<input id="t-project"></label>
+            <label class="f">Business purpose<input id="t-purpose" placeholder="e.g. Site install"></label>
+            <label class="f">Site ZIP<input id="t-zip" inputmode="numeric"></label>
+          </div>
+          <label class="check"><input type="checkbox" id="t-firstPrev"><span>I traveled straight here from another job site (continuous travel): my first day is a full day at this site's rate</span></label>
+          <label class="check"><input type="checkbox" id="t-lastNext"><span>My last travel day goes straight to the next job site (claim it on that trip, at its full rate)</span></label>
+        </div>
+        <div class="box">
+          <h3>GSA per diem for this location</h3>
+          <div class="grid">
+            <label class="f">Lodging rate (per night, before tax)<input id="t-cap" inputmode="decimal" placeholder="$"></label>
+            <label class="f">M&amp;IE rate (full day)<input id="t-mie" inputmode="decimal" placeholder="$"></label>
+          </div>
+          <div id="pdOut"></div>
+        </div>
+        <div><button class="btn" id="exampleBtn" type="button">Fill with an example trip</button> <span class="hint">Made-up rates ($150 lodging, $68 M&amp;IE). Look up your real ones on gsa.gov.</span></div>
+      </div>
+    </div>
+
+    <!-- 2 RECEIPTS -->
+    <div class="panel" id="tab-receipts" role="tabpanel" hidden>
+      <div class="pin">
+        <div><h2>Receipts</h2><p class="lede">Drop every receipt from the trip: phone photos (JPEG or HEIC), screenshots, and emailed or vendor PDFs. Each one becomes a lossless PNG. Check the fields on each card, or press “Read receipts” to have Claude fill them in.</p></div>
+        <label class="drop" id="drop" for="fileIn2">
+          <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M17 23V8m0 0-6 6m6-6 6 6M7 22v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <strong>Drop receipts here</strong>
+          <span class="hint">or tap to pick from your photos and files · JPEG, HEIC, PNG, WebP, PDF</span>
+          <input type="file" id="fileIn2" class="sr" multiple accept="image/*,.heic,.heif,application/pdf,.pdf">
+        </label>
+        <div class="dl" id="rcActions" hidden>
+          <button class="btn primary" id="readBtn" type="button">Read receipts with Claude</button>
+          <span class="status" id="readStatus"></span>
+        </div>
+        <div class="cards" id="cards"></div>
+      </div>
+    </div>
+
+    <!-- 3 REVIEW -->
+    <div class="panel" id="tab-review" role="tabpanel" hidden>
+      <div class="pin">
+        <div><h2>Review</h2><p class="lede">Every expense line in date order, with the per diem days filled in. Fix anything flagged, then enter these lines in Unanet exactly as shown.</p></div>
+        <div class="stats" id="stats"></div>
+        <div class="box"><h3>Checks</h3><ul class="checks" id="checks"></ul></div>
+        <div>
+          <h3 style="margin-bottom:8px">Lines to enter in Unanet</h3>
+          <div class="tbl"><table id="linesTbl"></table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4 PACKET -->
+    <div class="panel" id="tab-packet" role="tabpanel" hidden>
+      <div class="pin">
+        <div><h2>Trip packet</h2><p class="lede">One PDF for the report: the summary first, then every receipt in timeline order, one per page, with nothing written on the receipt pages. Images go in losslessly.</p></div>
+        <div class="box">
+          <h3>File name</h3>
+          <div class="fname" id="pdfName"></div>
+          <span class="hint">Pattern: first initial, last name, report number. Use the same name everywhere you save it.</span>
+        </div>
+        <div class="box">
+          <h3>Page 1</h3>
+          <label class="check"><input type="radio" name="p1" value="gen" id="p1gen" checked><span><b>Trip timeline summary</b> built from the Review lines</span></label>
+          <label class="check"><input type="radio" name="p1" value="unanet" id="p1un"><span><b>My Unanet report summary</b> (a screenshot, after you save the report in Unanet)</span></label>
+          <div id="p1upWrap" hidden><label class="btn small" for="p1file">Choose Unanet summary screenshot</label><input type="file" id="p1file" class="sr" accept="image/*,.heic,.heif,application/pdf,.pdf"> <span class="status" id="p1status">None yet</span></div>
+        </div>
+        <div class="dl"><button class="btn primary" id="buildBtn" type="button">Build my packet</button><span class="status" id="buildStatus"></span></div>
+        <div class="box" id="builtBox" hidden>
+          <h3>Pages</h3>
+          <div class="pages" id="pages"></div>
+          <div class="dl">
+            <button class="btn primary" id="dlPdf" type="button">Save PDF</button>
+            <button class="btn" id="dlCsv" type="button">Save lines (.csv)</button>
+          </div>
+          <span class="status" id="dlStatus"></span>
+        </div>
+        <div class="box">
+          <h3>Trackers and receipts</h3>
+          <p class="hint" style="margin:0">Saves your Travel tracker, plus your Overhead tracker if you have purchases (tools, material, training), with this trip filled in. Formulas and dropdowns stay as they are. Save the receipt PNGs too: next time, load both here to pick up where you left off.</p>
+          <div class="dl">
+            <button class="btn primary" id="saveBooks" type="button">Save updated trackers (.xlsx)</button>
+            <button class="btn" id="dlZip" type="button">Save receipt PNGs (.zip)</button>
+          </div>
+          <span class="status" id="booksStatus"></span>
+        </div>
+        <div class="box">
+          <h3>After you save it</h3>
+          <ol style="margin:0;padding-left:20px">
+            <li>Enter each line from Review in Unanet. Leave Comments empty.</li>
+            <li>Attach this PDF as the report’s only attachment.</li>
+            <li>Save the report, look it over, and submit it yourself.</li>
+            <li>Put the updated trackers back in Google Sheets: open the tracker, File → Import → Upload, pick the file, choose <b>Replace spreadsheet</b>. First time: upload the file to Google Drive and open it with Google Sheets.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="overlay" id="overlay" hidden><div>Drop receipts to add them</div></div>
+<div class="lightbox" id="lightbox" hidden></div>
+
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const CDN = {
+  pdfjs: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
+  pdfjsWorker: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",
+  pdflib: "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js",
+  jszip: "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+  heic: "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"
+};
+
+/* ---------- process guide (the knowledge base the chat answers from) ---------- */
+const TAX_SEPARATE = ["Material","Power tools","Printing & copying","Equipment"];
+const CATS = ["Airfare","Lodging","Parking","Baggage fee","Ground transport","Rental car","Fuel","Material","Power tools","Printing & copying","Equipment","Supplies","PPE / safety gear","Training","Certification / license","Drug test / screening","Shipping","Other"];
+/* where each expense type goes in the trackers: travel book (Expenses tab) or overhead book (Purchases tab), with the tracker's category and a default Unanet expense type */
+const BOOKMAP = {
+  "Airfare":{book:"travel",cat:"Airfare"}, "Lodging":{book:"travel",cat:"Lodging"}, "Parking":{book:"travel",cat:"Parking & Tolls"},
+  "Baggage fee":{book:"travel",cat:"Baggage Fees"}, "Ground transport":{book:"travel",cat:"Rideshare / Taxi"}, "Rental car":{book:"travel",cat:"Rental Car"},
+  "Fuel":{book:"travel",cat:"Fuel"}, "Shipping":{book:"travel",cat:"Other"}, "Other":{book:"travel",cat:"Other"},
+  "Material":{book:"overhead",cat:"Supplies",type:"Materials"}, "Power tools":{book:"overhead",cat:"Tools",type:"Tools_Power"},
+  "Printing & copying":{book:"overhead",cat:"Supplies",type:"Office Supplies"}, "Equipment":{book:"overhead",cat:"Tools",type:"Tools_Hand"},
+  "Supplies":{book:"overhead",cat:"Supplies",type:""}, "PPE / safety gear":{book:"overhead",cat:"PPE / Safety Gear",type:"Personal Protection-Field Service"},
+  "Training":{book:"overhead",cat:"Training",type:"Conferences & Training"}, "Certification / license":{book:"overhead",cat:"Certification / License",type:"Conferences & Training"},
+  "Drug test / screening":{book:"overhead",cat:"Drug Test / Screening",type:"Recruiting"}
+};
+const FROM_TRAVEL = {"Airfare":"Airfare","Lodging":"Lodging","Parking & Tolls":"Parking","Baggage Fees":"Baggage fee","Rideshare / Taxi":"Ground transport","Public Transit":"Ground transport","Rental Car":"Rental car","Fuel":"Fuel"};
+const FROM_OVERHEAD = {"Training":"Training","Certification / License":"Certification / license","Drug Test / Screening":"Drug test / screening","PPE / Safety Gear":"PPE / safety gear"};
+const DEF_PAID = ["Personal Card","Personal Debit","Cash","Company Card","Direct Bill"];
+const DEF_UTYPES = ["Recruiting","Conferences & Training","Travel_Other","Tools_Hand","Tools_Power","Office Supplies","Materials","Personal Protection-Field Service","Other"];
+const STATUSES = ["Not submitted","Submitted","Reimbursed","Rejected"];
+const FAQ = [
+  {id:"finish", chip:"What do I do at the end of a trip?", keys:["end","finish","start","steps","what do i","how do i","process","submit"], a:
+`Five steps:
+1. **Trip tab:** your name, report number, travel dates and the GSA rates for the location.
+2. **Drop every receipt** here: photos, screenshots, emailed receipts or vendor PDFs. Each becomes a PNG.
+3. **Review tab:** fix anything flagged. It lists every line in date order, M&IE days included.
+4. **Packet tab:** build one PDF, summary first, then the receipts.
+5. In Unanet, enter the lines, attach the PDF as the only attachment, save, look it over, and **submit it yourself**.`},
+  {id:"tax", chip:"Where does tax go?", keys:["tax","taxes","sales tax","separate"], a:
+`Tax gets its own line **only** for material, power tools, printing & copying, or equipment.
+- **Airfare:** one line at the total fare, taxes included.
+- **Hotel:** every tax and fee (occupancy tax, "daily fee", "lodging fee", convention/tourism fee) goes in the lodging line's Tax box. Only an obscure charge, like a $200 resort fee, gets its own line.
+- **Parking:** one line, (daily cost + tax) × days. No separate tax.`},
+  {id:"lodging", chip:"How do I claim my hotel?", keys:["hotel","lodging","folio","room","nightly","resort","kitchen"], a:
+`Claim the folio's nightly room rate, capped at the GSA lodging rate.
+- In Unanet's lodging per diem wizard, the GSA rate is the allowance and the folio rate is the daily rate.
+- All room taxes and fees go in the lodging line's Tax box.
+- The receipt is the **final folio** from checkout, not the reservation.
+- Book at or under per diem. If a stay looks likely to cost more, pick a different hotel with a kitchen. Never book a resort.`},
+  {id:"mie", chip:"How is M&IE figured?", keys:["m&ie","mie","meals","meal","food","lunch","dinner","receipt for meals","receipt for food","meal receipt","per diem","incidental","75","travel day","breakfast"], a:
+`M&IE uses the GSA rate for the location.
+- **75% only on the first day** (home to the first job site) **and the last day** (last job site back home).
+- **Every other day:** the full rate.
+- **Job site straight to another job site** is continuous travel: claim that day once, on the new trip, at **100% of the new site's** rate. The Trip tab has a box on each trip for this.
+- No receipt is needed.
+- A free hotel breakfast is **not** deducted. A government-provided meal is.`},
+  {id:"parking", chip:"How do I enter parking?", keys:["parking","park","garage","lot"], a:
+`Parking is one line: (daily cost + daily tax) × number of days. Don't split the tax out. Put the daily cost, daily tax and days on the receipt card and the app does the math.`},
+  {id:"airfare", chip:"My fare is above market", keys:["airfare","flight","fare","above market","ticket","bag","baggage","approval","manager"], a:
+`Airfare is one line at the total price, taxes included.
+If a fare is above market or over per diem (holiday travel, last-minute changes), email your manager for approval. Give the fare, the lower fares you found and why, and attach the flight receipt. Keep the approval with the trip.
+Keep every bag-fee receipt. If an overweight charge is likely (a heavy toolbox), say so in the same email.`},
+  {id:"receipts", chip:"Which receipt counts?", keys:["receipt","which","uber","amazon","screenshot","photo","email","blurry","transcri","lyft"], a:
+`Only a real photo or screenshot of the actual receipt. Never retype one.
+- **Uber/Lyft:** the trip receipt ("Thanks for riding"), not the charge summary.
+- **Amazon:** the Order Summary print page that lists every item and price, not the "thanks for your order" email.
+- **Hotel:** the final folio, not the reservation.
+- **Emailed receipts:** a screenshot of the email, or the vendor's PDF.
+- Every image must be clear. Retake anything blurry; the app flags photos that look soft.`},
+  {id:"comments", chip:"Should I write comments?", keys:["comment","comments","note","explain"], a:
+`Leave the Comments box empty on every line. Approvers want reports with few comments. Add one only when someone asks you for specific text. Unanet's own auto-filled wizard summary (vendor, location and so on) is fine to leave.`},
+  {id:"pdf", chip:"How should the PDF look?", keys:["pdf","attach","attachment","name","file name","order","page","png","jpeg","jpg","lossless"], a:
+`Exactly **one PDF** per report:
+- Page 1 is the report summary. Every page after it is one receipt, with nothing added on it.
+- Name it first initial, last name and report number, for example \`J. Smith 12345.pdf\`.
+- Receipts are saved as **PNG** (lossless), never JPEG, so they stay sharp under audit. The Packet tab builds all of this for you.`},
+  {id:"edit", chip:"How do I see my approver's changes?", keys:["edit","pencil","changes","correct","approver","in use","resubmit","pulled"], a:
+`Careful: pressing **Edit** (the pencil) on a submitted report in Unanet pulls it out of approval and back to "In Use", and you have to resubmit it. Ask your approver to send the changes by email instead, or view the report without pressing Edit if your role has a read-only view.`},
+  {id:"trackers", chip:"How do I pick up where I left off?", keys:["spreadsheet","tracker","sheet","google","xlsx","excel","continue","resume","later","pick up","reload","log"], a:
+`Your trip lives in two Google Sheets trackers: **Travel** (flights, hotel, parking, rides, M&IE) and **Overhead** (tools, material, training, PPE).
+1. When you're done for the day, press **Save updated trackers** and **Save receipt PNGs** on the Packet tab.
+2. Put each tracker back in Google Sheets: open it, File → Import → Upload, then **Replace spreadsheet**. First time, upload the file to Drive and open it with Google Sheets.
+3. To continue, download each tracker from Google Sheets (File → Download → Microsoft Excel), then drop both files and the receipts .zip here. Pick the trip, and everything comes back.
+Formulas, dropdowns and your other trips are left as they are.`},
+  {id:"privacy", chip:"Where do my receipts go?", keys:["privacy","upload","safe","secure","where","stored","card"], a:
+`Your receipts stay in this browser tab. They are converted and built into the PDF right here. They are sent to Claude only when you press "Read receipts", and only so Claude can fill in vendor, date and amount. Closing the tab clears them, so save your packet first. Never type a card number or password here.`}
+];
+const GUIDE = FAQ.map(f => `## ${f.chip}\n${f.a}`).join("\n\n");
+
+/* ---------- state ---------- */
+const S = { trip: {}, receipts: [], seq: 0, built: null, p1: null, books: {}, mieX: {} };
+const TRIP_FIELDS = ["first","last","report","loc","start","end","cap","mie","firstPrev","lastNext","tripId","project","purpose","zip"];
+try { Object.assign(S.trip, JSON.parse(localStorage.getItem("tvh.trip") || "{}")); } catch(e) {}
+function saveTrip(){ try { localStorage.setItem("tvh.trip", JSON.stringify(S.trip)); } catch(e) {} }
+
+/* ---------- helpers ---------- */
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = v => { if (v === null || v === undefined || v === "") return null; const n = parseFloat(String(v).replace(/[$,\s]/g,"")); return isFinite(n) ? n : null; };
+const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+const money = n => (n == null || !isFinite(n)) ? "—" : n.toLocaleString("en-US",{style:"currency",currency:"USD"});
+const dUTC = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s||""); return m ? Date.UTC(+m[1], +m[2]-1, +m[3]) : null; };
+const iso = t => new Date(t).toISOString().slice(0,10);
+const fmtD = s => { const t = dUTC(s); if (t == null) return ""; const d = new Date(t); return `${String(d.getUTCMonth()+1).padStart(2,"0")}/${String(d.getUTCDate()).padStart(2,"0")}/${d.getUTCFullYear()}`; };
+const dow = s => { const t = dUTC(s); return t == null ? "" : ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(t).getUTCDay()]; };
+const scripts = {};
+function loadScript(src){ return scripts[src] ||= new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => { delete scripts[src]; rej(new Error("Could not load " + src)); }; document.head.appendChild(s); }); }
+const toBlob = (c) => new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error("PNG encode failed")), "image/png"));
+const slug = s => String(s||"").normalize("NFKD").replace(/[^\w\s-]/g,"").trim().replace(/\s+/g,"-").slice(0,40) || "Receipt";
+
+/* ---------- capabilities ---------- */
+let sample = null, downloads = null, imgLimits = null;
+(async () => {
+  if (!window.claude || !window.claude.use) return;
+  try { sample = await window.claude.use("sample"); } catch(e) { sample = null; }
+  try { downloads = await window.claude.use("downloads"); } catch(e) { downloads = null; }
+  if (sample) { try { const l = await sample.limits(); imgLimits = l && l.images ? l.images : null; } catch(e) { imgLimits = null; } }
+  renderReceiptsActions();
+})();
+
+/* ---------- per diem ---------- */
+function perDiem(){
+  const t = S.trip, a = dUTC(t.start), b = dUTC(t.end), mie = num(t.mie), cap = num(t.cap);
+  if (a == null || b == null || b < a) return null;
+  const n = Math.round((b - a) / 86400000);
+  const days = [];
+  for (let i = 0; i <= n; i++){
+    const date = iso(a + i*86400000);
+    if (i === n && t.lastNext && n > 0) continue; // site-to-site day: claimed on the next trip at its full rate
+    const cont = i === 0 && !!t.firstPrev;            // arrived straight from another job site
+    const travel = !cont && (i === 0 || i === n);
+    const pct = travel ? 0.75 : 1;
+    days.push({ date, pct, cont, amount: mie != null ? r2(mie * pct) : null, label: cont ? "Full day (continuous travel site to site)" : travel ? "Travel day (75%)" : "Full day" });
+  }
+  const mieTotal = mie != null ? r2(days.reduce((s,d) => s + d.amount, 0)) : null;
+  return { nights: n, days, mie, cap, mieTotal, lodgingMax: cap != null ? r2(cap * n) : null, sameDay: n === 0 };
+}
+
+/* ---------- ledger lines ---------- */
+function receiptLines(r, pd){
+  const f = r.f, c = f.category, total = num(f.total), tax = num(f.tax) || 0, out = [];
+  const base = { date: f.date || "", vendor: f.vendor || "", receipt: r, cat: c || "Uncategorized" };
+  if (c === "Lodging"){
+    const nights = num(f.nights) ?? (pd ? pd.nights : null);
+    let rate = num(f.nightlyRate);
+    if (rate == null && total != null && nights) rate = r2((total - tax) / nights);
+    const cap = pd ? pd.cap : null;
+    const claimed = (rate != null && cap != null) ? Math.min(rate, cap) : rate;
+    const amount = (claimed != null && nights) ? r2(claimed * nights) : null;
+    out.push({ ...base, amount, tax, detail: nights && rate != null ? `${nights} night${nights>1?"s":""} × ${money(claimed)}${rate > (cap ?? Infinity) ? " (capped)" : ""}` : "Nights and nightly rate needed",
+      how: `Lodging per diem wizard. Allowance ${money(cap)}/night, daily rate ${money(rate)}. All room taxes and fees ${money(tax)} in the Tax box.`, over: rate != null && cap != null && rate > cap, rate, nights });
+  } else if (c === "Parking"){
+    const days = num(f.days), daily = num(f.dailyRate), dtax = num(f.dailyTax) || 0;
+    const amount = (days && daily != null) ? r2((daily + dtax) * days) : total;
+    out.push({ ...base, amount, tax: 0, detail: (days && daily != null) ? `${days} day${days>1?"s":""} × ${money(r2(daily + dtax))} with tax` : "Total from receipt",
+      how: "One line, tax included. No separate tax line." });
+  } else if (c === "Airfare"){
+    out.push({ ...base, amount: total, tax: 0, detail: "Total fare, taxes included", how: "One line at the total fare. Don't split the tax.", aboveMarket: !!f.aboveMarket });
+  } else if (TAX_SEPARATE.includes(c)){
+    out.push({ ...base, amount: total != null ? r2(total - tax) : null, tax: 0, detail: "Before tax", how: "Item amount before tax." });
+    if (tax > 0) out.push({ ...base, cat: "Sales tax", amount: tax, tax: 0, detail: `Tax on ${c.toLowerCase()}`, how: "Sales tax on its own line (material, tools, printing or equipment only).", taxLine: true });
+  } else {
+    out.push({ ...base, amount: total, tax: 0, detail: c === "Baggage fee" ? "Checked bag" : "", how: "One line at the receipt total." });
+  }
+  return out;
+}
+function model(){
+  const pd = perDiem();
+  const lines = [];
+  for (const r of S.receipts) lines.push(...receiptLines(r, pd));
+  if (pd && pd.mie != null) for (const d of pd.days) lines.push({ date: d.date, cat: "M&IE", vendor: "GSA per diem", amount: d.amount, tax: 0, detail: d.label, how: "M&IE per diem wizard. No receipt.", mie: true });
+  const ord = l => l.mie ? 2 : l.taxLine ? 1 : 0;
+  lines.sort((a,b) => (a.date||"9999").localeCompare(b.date||"9999") || ord(a)-ord(b));
+  lines.forEach((l,i) => l.no = i+1);
+  // receipt order = order of first appearance in the timeline
+  const order = []; for (const l of lines) if (l.receipt && l.receipt.pages.length && !order.includes(l.receipt)) order.push(l.receipt);
+  const receipted = r2(lines.filter(l => !l.mie).reduce((s,l) => s + (l.amount||0) + (l.tax||0), 0));
+  const mieTotal = r2(lines.filter(l => l.mie).reduce((s,l) => s + (l.amount||0), 0));
+  return { pd, lines, order, receipted, mieTotal, total: r2(receipted + mieTotal) };
+}
+function pdfName(){
+  const t = S.trip, fi = (t.first||"").trim().charAt(0).toUpperCase(), ln = (t.last||"").trim(), rep = (t.report||"").trim();
+  if (!fi || !ln) return rep ? `Expense report ${rep}.pdf` : "Trip packet.pdf";
+  return `${fi}. ${ln}${rep ? " " + rep : ""}.pdf`;
+}
+
+/* ---------- checks (R1–R10 from the spec, made universal) ---------- */
+function checks(m){
+  const out = [], t = S.trip, pd = m.pd;
+  const add = (lvl, text) => out.push({ lvl, text });
+  if (!t.first || !t.last) add("bad", "Add your first and last name on the Trip tab. The PDF is named from them.");
+  if (!t.report) add("warn", "No report number yet. Create the report in Unanet, then add its number so the PDF gets the right name.");
+  if (!pd) add("bad", "Add the first and last travel days on the Trip tab.");
+  else {
+    if (pd.mie == null) add("bad", "Add the GSA M&IE rate on the Trip tab.");
+    if (pd.cap == null) add("warn", "Add the GSA lodging rate so the hotel line can be capped.");
+    if (pd.sameDay) add("warn", "Same-day trip: M&IE is shown at 75%. Check with your approver whether it applies.");
+  }
+  if (!S.receipts.length) add("warn", "No receipts yet. Drop them in the chat or on the Receipts tab.");
+  for (const r of S.receipts){
+    const f = r.f, nm = f.vendor || r.name;
+    if (!f.category) add("bad", `${nm}: pick an expense type.`);
+    if (num(f.total) == null && !(f.category === "Parking" && num(f.dailyRate) != null)) add("bad", `${nm}: enter the amount from the receipt.`);
+    if (!f.date) add("bad", `${nm}: enter the receipt date.`);
+    else if (pd && (f.date < S.trip.start || f.date > S.trip.end)) add("warn", `${nm}: dated ${fmtD(f.date)}, outside the trip dates. Fine for airfare bought ahead; otherwise check it.`);
+    if (!r.pages.length) add("bad", `${nm}: no receipt image here yet. Drop the photo, or your receipts .zip, so it goes in the PDF.`);
+    if (bookOf(r) === "overhead" && !r.f.unanetType) add("warn", `${nm}: pick the Unanet expense type under “Tracker details” on its card.`);
+    if (r.blurry) add("warn", `${nm}: the photo looks soft. Retake it if any text is hard to read.`);
+    if (r.ai && r.ai.issue) add("warn", `${nm}: ${r.ai.issue}`);
+  }
+  for (const l of m.lines){
+    if (l.over) add("warn", `${l.vendor||"Hotel"}: folio rate ${money(l.rate)} is over the GSA rate. Claimed at ${money(pd.cap)}/night; the difference is yours unless approved.`);
+    if (l.aboveMarket) add("warn", `${l.vendor||"Airfare"}: marked above market. Keep your manager's written approval with this trip.`);
+    if (l.cat === "Lodging" && (!l.nights)) add("bad", `${l.vendor||"Hotel"}: enter the number of nights.`);
+  }
+  const seen = new Map();
+  for (const r of S.receipts){ const k = [r.f.vendor||"", r.f.date||"", num(r.f.total)].join("|"); if (r.f.vendor && r.f.date && num(r.f.total) != null){ if (seen.has(k)) add("warn", `${r.f.vendor} on ${fmtD(r.f.date)} for ${money(num(r.f.total))} appears twice. Remove the duplicate.`); else seen.set(k, r); } }
+  if (!out.length || out.every(c => c.lvl === "ok")) add("ok", "Everything checks out. Build your packet on the Packet tab.");
+  out.push({ lvl: "ok", text: "Comments stay empty on every line. Tax placement follows the rules shown in each line's “How to enter”." });
+  return out;
+}
+
+/* ---------- chat ---------- */
+const log = $("#log");
+function inline(el, s){
+  for (const part of s.split(/(\*\*[^*]+\*\*|`[^`]+`)/)){
+    if (!part) continue;
+    if (part.startsWith("**") && part.endsWith("**")){ const b = document.createElement("strong"); b.textContent = part.slice(2,-2); el.append(b); }
+    else if (part.startsWith("`") && part.endsWith("`")){ const c = document.createElement("code"); c.textContent = part.slice(1,-1); el.append(c); }
+    else el.append(part);
+  }
+}
+function rich(text){
+  const frag = document.createDocumentFragment(); let list = null, kind = "";
+  for (const raw of String(text).split("\n")){
+    const line = raw.trim();
+    let m;
+    if ((m = /^[-•*]\s+(.*)$/.exec(line))){ if (kind !== "ul"){ list = document.createElement("ul"); frag.append(list); kind = "ul"; } const li = document.createElement("li"); inline(li, m[1]); list.append(li); continue; }
+    if ((m = /^\d+[.)]\s+(.*)$/.exec(line))){ if (kind !== "ol"){ list = document.createElement("ol"); frag.append(list); kind = "ol"; } const li = document.createElement("li"); inline(li, m[1]); list.append(li); continue; }
+    kind = ""; list = null;
+    if (!line) continue;
+    const p = document.createElement("p"); inline(p, line.replace(/^#+\s*/,"")); frag.append(p);
+  }
+  return frag;
+}
+function say(role, text, acts){
+  const d = document.createElement("div"); d.className = "msg " + role;
+  if (role === "bot"){ const w = document.createElement("div"); w.className = "who"; w.textContent = "Helper"; d.append(w); }
+  const body = document.createElement("div"); body.className = "body";
+  if (text != null) body.append(rich(text));
+  d.append(body);
+  if (acts && acts.length){ const a = document.createElement("div"); a.className = "acts"; for (const x of acts){ const b = document.createElement("button"); b.type = "button"; b.className = "btn small" + (x.primary ? " primary" : ""); b.textContent = x.label; b.onclick = x.fn; a.append(b); } d.append(a); }
+  log.append(d); log.scrollTop = log.scrollHeight;
+  return body;
+}
+const turns = [];
+function faqMatch(q){
+  const s = q.toLowerCase(); let best = null, score = 0;
+  for (const f of FAQ){ let k = 0; for (const key of f.keys) if (s.includes(key)) k += key.length; if (k > score){ score = k; best = f; } }
+  return best;
+}
+function tripContext(){
+  const m = model(), t = S.trip;
+  return JSON.stringify({
+    trip: { location: t.loc || null, firstTravelDay: t.start || null, lastTravelDay: t.end || null, gsaLodging: num(t.cap), gsaMIE: num(t.mie), lastDayGoesToNextTrip: !!t.lastNext, firstDayIsContinuousTravelFromAnotherSite: !!t.firstPrev, reportNumber: t.report || null },
+    perDiem: m.pd ? { nights: m.pd.nights, mieDays: m.pd.days.map(d => `${d.date} ${d.label} ${d.amount}`), mieTotal: m.pd.mieTotal, lodgingMax: m.pd.lodgingMax } : null,
+    receipts: S.receipts.map(r => ({ type: r.f.category || null, vendor: r.f.vendor || null, date: r.f.date || null, total: num(r.f.total), tax: num(r.f.tax) })),
+    lines: m.lines.map(l => ({ no: l.no, date: l.date, type: l.cat, vendor: l.vendor, amount: l.amount, taxBox: l.tax })),
+    totals: { receipted: m.receipted, mie: m.mieTotal, total: m.total },
+    openChecks: checks(m).filter(c => c.lvl !== "ok").map(c => c.text)
+  });
+}
+const RULES = `You are the Trip Voucher Helper, a chat assistant inside a web page that field technicians use at the end of a work trip to prepare a travel expense report (voucher) in Unanet.
+Answer ONLY from the PROCESS GUIDE and the TRIP STATE below. If the guide does not cover the question, say plainly that it isn't covered here and suggest asking their approver or manager. Never invent policy, rates, limits or amounts. GSA rates come from gsa.gov; tell them to look them up there if missing.
+This page never submits reports and never sends email. The technician enters the lines in Unanet and submits the report themselves.
+To add receipts they drop files in the chat or on the Receipts tab. Tabs: Trip, Receipts, Review, Packet.
+Keep answers short: under 120 words, plain sentences or a short list, no headings. Use **bold** sparingly.
+
+PROCESS GUIDE
+${GUIDE}`;
+let chatCtl = null;
+async function ask(q){
+  say("user", q);
+  turns.push({ role: "user", content: q });
+  const local = faqMatch(q);
+  if (!sample){
+    if (local) { say("bot", local.a); turns.push({ role:"assistant", content: local.a }); }
+    else say("bot", "I don't have an answer for that in the process guide. Try one of the topics below, or ask your approver or manager.");
+    return;
+  }
+  const body = say("bot", null); body.innerHTML = '<p class="thinking">Thinking…</p>';
+  chatCtl = new AbortController();
+  const recent = turns.slice(-8);
+  const input = [{ role: "user", content: RULES + "\n\nTRIP STATE (JSON)\n" + tripContext() + "\n\nReply to the technician's messages that follow." }, { role: "assistant", content: "Understood." }, ...recent];
+  while (input.length > 2 && input[2].role !== "user") input.splice(2,1);
+  try {
+    const { text } = await sample(input, { cache: false, modelTier: "quick", signal: chatCtl.signal, onText: ({ text }) => { body.replaceChildren(rich(text)); log.scrollTop = log.scrollHeight; } });
+    body.replaceChildren(rich(text)); turns.push({ role: "assistant", content: text });
+  } catch (e) {
+    if (e && e.text) body.replaceChildren(rich(e.text));
+    else if (local) { body.replaceChildren(rich(local.a)); turns.push({ role:"assistant", content: local.a }); }
+    else body.replaceChildren(rich(e && e.code === "rate_limited" ? "Claude is busy for you right now. Try again in a minute, or pick a topic below." : "Claude isn't available here. Pick a topic below, or ask your approver or manager."));
+    if (e && (e.code === "not_granted" || e.code === "sampling_disabled")) sample = null;
+  }
+}
+function renderChips(){
+  const c = $("#chips"); c.replaceChildren();
+  for (const f of FAQ){ const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = f.chip; b.onclick = () => { say("user", f.chip); say("bot", f.a); turns.push({role:"user",content:f.chip},{role:"assistant",content:f.a}); }; c.append(b); }
+}
+$("#composer").addEventListener("submit", e => { e.preventDefault(); const v = $("#msg").value.trim(); if (!v) return; $("#msg").value = ""; autosize(); ask(v); });
+$("#msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); $("#composer").requestSubmit(); } });
+function autosize(){ const t = $("#msg"); t.style.height = "auto"; t.style.height = Math.min(140, t.scrollHeight) + "px"; }
+$("#msg").addEventListener("input", autosize);
+
+/* ---------- tabs ---------- */
+let tab = "trip";
+function showTab(name){
+  tab = name;
+  for (const b of $$(".step")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
+  for (const p of $$(".work .panel")) p.hidden = p.id !== "tab-" + name;
+  if (name === "review") renderReview();
+  if (name === "packet") renderPacket();
+  if (matchMedia("(max-width:900px)").matches) setMobile("work");
+}
+for (const b of $$(".step")) b.addEventListener("click", () => showTab(b.dataset.tab));
+function setMobile(which){
+  $("#mChat").setAttribute("aria-pressed", String(which === "chat")); $("#mWork").setAttribute("aria-pressed", String(which === "work"));
+  if (matchMedia("(max-width:900px)").matches){ $("#chatPane").hidden = which !== "chat"; $("#workPane").hidden = which !== "work"; }
+}
+$("#mChat").onclick = () => setMobile("chat"); $("#mWork").onclick = () => setMobile("work");
+matchMedia("(max-width:900px)").addEventListener("change", e => { if (!e.matches){ $("#chatPane").hidden = false; $("#workPane").hidden = false; } else setMobile("chat"); });
+
+/* ---------- trip form ---------- */
+function bindTrip(){
+  for (const k of TRIP_FIELDS){
+    const el = $("#t-" + k); if (!el) continue;
+    if (el.type === "checkbox") el.checked = !!S.trip[k]; else el.value = S.trip[k] ?? "";
+    el.addEventListener(el.type === "checkbox" ? "change" : "input", () => { S.trip[k] = el.type === "checkbox" ? el.checked : el.value; saveTrip(); renderTrip(); refresh(); });
+  }
+}
+function renderTrip(){
+  const pd = perDiem(), out = $("#pdOut");
+  if (!pd){ out.innerHTML = (dUTC(S.trip.start) != null && dUTC(S.trip.end) != null) ? '<p class="hint" style="color:var(--bad)">The last travel day is before the first. Check the dates.</p>' : '<p class="hint">Add both travel days to see your per diem.</p>'; return; }
+  const rows = pd.days.map(d => `<tr class="mie"><td>${dow(d.date)} ${fmtD(d.date)}</td><td>${d.label}</td><td class="n">${money(d.amount)}</td></tr>`).join("");
+  out.innerHTML = `<div class="stats">
+    <div class="stat"><span>Nights</span><b>${pd.nights}</b></div>
+    <div class="stat"><span>Lodging max</span><b>${money(pd.lodgingMax)}</b></div>
+    <div class="stat"><span>M&amp;IE days</span><b>${pd.days.length}</b></div>
+    <div class="stat"><span>M&amp;IE total</span><b>${money(pd.mieTotal)}</b></div></div>
+    ${pd.mie != null ? `<div class="tbl"><table><thead><tr><th>Day</th><th>M&amp;IE</th><th class="n">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="hint">Add the M&amp;IE rate to see each day.</p>'}
+    ${S.trip.lastNext ? '<p class="hint">Last travel day left off: claim it on the next trip at that site\'s full rate.</p>' : ""}`;
+}
+$("#exampleBtn").onclick = () => {
+  Object.assign(S.trip, { loc: "Example City, ST (example)", start: "2027-03-08", end: "2027-03-12", cap: "150", mie: "68" });
+  saveTrip(); bindTripValues(); renderTrip(); refresh();
+  say("bot", "I filled in an **example** trip: Example City, 3/8 to 3/12/2027, with made-up rates of $150 lodging and $68 M&IE. Replace it with your own trip before you build anything.");
+};
+function bindTripValues(){ for (const k of TRIP_FIELDS){ const el = $("#t-"+k); if (!el) continue; if (el.type === "checkbox") el.checked = !!S.trip[k]; else el.value = S.trip[k] ?? ""; } }
+
+/* ---------- receipt intake: everything becomes PNG once ---------- */
+const MAX_PX = 9e6; // cap converted photos at ~9 MP so the PDF stays a sensible size
+async function bitmapToPng(bmp){
+  let w = bmp.width, h = bmp.height; const k = Math.min(1, Math.sqrt(MAX_PX / (w*h)));
+  w = Math.round(w*k); h = Math.round(h*k);
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0,0,w,h); g.drawImage(bmp, 0, 0, w, h);
+  return { blob: await toBlob(c), w, h, canvas: c };
+}
+function sharpness(src){
+  const W = 640, k = W / src.width, H = Math.max(1, Math.round(src.height * k));
+  const hh = Math.min(H, 900);
+  const c = document.createElement("canvas"); c.width = W; c.height = hh;
+  const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(src, 0, 0, W, H);
+  const d = g.getImageData(0,0,W,hh).data, gray = new Float32Array(W*hh);
+  for (let i = 0, j = 0; i < d.length; i += 4, j++) gray[j] = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+  let sum = 0, sq = 0, n = 0;
+  for (let y = 1; y < hh-1; y++) for (let x = 1; x < W-1; x++){
+    const i = y*W + x, v = 4*gray[i] - gray[i-1] - gray[i+1] - gray[i-W] - gray[i+W];
+    sum += v; sq += v*v; n++;
+  }
+  const mean = sum / n; return sq / n - mean*mean;
+}
+const BLUR_LIMIT = 90;
+async function pngInfo(blob){ const bmp = await createImageBitmap(blob); const s = sharpness(bmp); const out = { w: bmp.width, h: bmp.height, sharp: s }; bmp.close && bmp.close(); return out; }
+async function intakeFile(file){
+  const name = file.name || "receipt";
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  const type = file.type || "";
+  const pages = [];
+  let kind = "image";
+  if (type === "application/pdf" || ext === "pdf"){
+    kind = "pdf";
+    await loadScript(CDN.pdfjs); await loadScript(CDN.pdfjsWorker);
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = CDN.pdfjsWorker;
+    const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+    const count = Math.min(doc.numPages, 12);
+    for (let p = 1; p <= count; p++){
+      const page = await doc.getPage(p), vp = page.getViewport({ scale: 200/72 });
+      const c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0,0,c.width,c.height);
+      await page.render({ canvasContext: g, viewport: vp }).promise;
+      pages.push({ blob: await toBlob(c), w: c.width, h: c.height, sharp: 9999 });
+    }
+  } else if (type === "image/heic" || type === "image/heif" || ext === "heic" || ext === "heif"){
+    kind = "heic";
+    await loadScript(CDN.heic);
+    let out = await window.heic2any({ blob: file, toType: "image/png" });
+    if (Array.isArray(out)) out = out[0];
+    const bmp = await createImageBitmap(out); const r = await bitmapToPng(bmp); const s = sharpness(r.canvas); bmp.close && bmp.close();
+    pages.push({ blob: r.blob, w: r.w, h: r.h, sharp: s });
+  } else if (type === "image/png" || ext === "png"){
+    kind = "png"; // already lossless: keep the original bytes
+    const info = await pngInfo(file);
+    pages.push({ blob: file.slice(0, file.size, "image/png"), w: info.w, h: info.h, sharp: info.sharp });
+  } else if (type.startsWith("image/") || ["jpg","jpeg","webp","gif","bmp","avif"].includes(ext)){
+    kind = "photo";
+    const bmp = await createImageBitmap(file); const r = await bitmapToPng(bmp); const s = sharpness(r.canvas); bmp.close && bmp.close();
+    pages.push({ blob: r.blob, w: r.w, h: r.h, sharp: s });
+  } else throw new Error("Not an image or PDF");
+  for (const p of pages) p.url = URL.createObjectURL(p.blob);
+  const r = { id: ++S.seq, name, kind, pages, f: blankF(), touched: {}, ai: null, x: {} };
+  r.blurry = pages.some(p => p.sharp < BLUR_LIMIT);
+  guessFromName(r);
+  return r;
+}
+function blankF(){ return { category: "", vendor: "", date: "", total: "", tax: "", time: "", paidWith: "", purpose: "", orderNo: "", fees: "", unanetType: "", status: "" }; }
+function bookOf(r){ return r.book || (BOOKMAP[r.f.category] || {}).book || "travel"; }
+function guessFromName(r){
+  const n = r.name.toLowerCase();
+  const pairs = [["delta|united|southwest|american air|alaska air|jetblue|frontier|flight|airfare|itinerary","Airfare"],["folio|hotel|inn|marriott|hilton|hyatt|suites|lodging","Lodging"],["parking|park","Parking"],["uber|lyft|taxi|cab","Ground transport"],["bag","Baggage fee"],["fuel|gas|shell|chevron|exxon","Fuel"],["hertz|enterprise|avis|budget|national|rental","Rental car"],["home depot|lowe|grainger|material","Material"],["print|copy|fedex office","Printing & copying"]];
+  for (const [re, c] of pairs) if (new RegExp(re).test(n)){ r.f.category = c; break; }
+  const d = /(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})/.exec(r.name); if (d) r.f.date = `${d[1]}-${d[2]}-${d[3]}`;
+}
+let busy = false;
+async function addFiles(list){
+  let files = [...list].filter(f => f && f.size);
+  const isX = f => /\.xlsx$/i.test(f.name || ""), isZ = f => /\.zip$/i.test(f.name || "") || f.type === "application/zip" || f.type === "application/x-zip-compressed";
+  const books = files.filter(isX), zips = files.filter(f => !isX(f) && isZ(f));
+  files = files.filter(f => !isX(f) && !isZ(f));
+  if (books.length) await importBooks(books);
+  for (const z of zips){ try { files.push(...await unzipReceipts(z)); } catch (e) { console.error(e); say("bot", `I couldn't open **${z.name}**. Save the receipts .zip again and drop it here.`); } }
+  if (!files.length) return;
+  const body = say("bot", `Converting ${files.length} file${files.length>1?"s":""} to PNG…`);
+  const ok = [], bad = [], attached = [];
+  busy = true;
+  for (const f of files){
+    try { const r = await intakeFile(f); const into = matchMissing(f.name || ""); if (into){ into.pages.push(...r.pages); into.kind = r.kind; into.blurry = into.pages.some(p => p.sharp < BLUR_LIMIT); into.name = r.name; into._from = baseName(f.name); attached.push(into); } else { S.receipts.push(r); ok.push(r); } }
+    catch (e) { console.error(e); bad.push(f.name || "a file"); }
+    body.replaceChildren(rich(`Converting ${files.length} file${files.length>1?"s":""} to PNG… ${ok.length + attached.length + bad.length} of ${files.length}`));
+  }
+  busy = false;
+  renderCards(); refresh();
+  const soft = ok.filter(r => r.blurry).length, pages = ok.reduce((s,r) => s + r.pages.length, 0);
+  const nAtt = new Set(attached).size;
+  let msg = ok.length || !nAtt ? `Added **${ok.length} receipt${ok.length!==1?"s":""}** (${pages} page${pages!==1?"s":""}), all saved as PNG.` : "";
+  if (nAtt) msg += `${msg ? "\n- " : ""}Matched **${nAtt}** receipt image${nAtt!==1?"s":""} to items from your tracker.`;
+  const stillMissing = S.receipts.filter(r => !r.pages.length).length;
+  if (stillMissing) msg += `\n- ${stillMissing} tracker item${stillMissing!==1?"s still have":" still has"} no receipt image.`;
+  if (bad.length) msg += `\n- Couldn't read: ${bad.join(", ")}. Send a photo, screenshot or PDF instead.`;
+  if (soft) msg += `\n- ${soft} photo${soft>1?"s look":" looks"} soft. Retake ${soft>1?"them":"it"} if the text is hard to read.`;
+  const missing = S.receipts.filter(r => !r.f.category || num(r.f.total) == null || !r.f.date).length;
+  if (missing) msg += `\n- ${missing} still need${missing===1?"s":""} a type, date or amount.`;
+  const acts = [];
+  if (sample && imgLimits && missing) acts.push({ label: "Read receipts with Claude", primary: true, fn: () => readReceipts() });
+  acts.push({ label: "Check the cards", primary: !acts.length, fn: () => showTab("receipts") });
+  if (!S.trip.start || !S.trip.mie) acts.push({ label: "Add trip details", fn: () => showTab("trip") });
+  body.replaceChildren(rich(msg));
+  const a = document.createElement("div"); a.className = "acts";
+  for (const x of acts){ const b = document.createElement("button"); b.type = "button"; b.className = "btn small" + (x.primary ? " primary" : ""); b.textContent = x.label; b.onclick = x.fn; a.append(b); }
+  body.parentElement.append(a);
+}
+for (const id of ["#fileIn", "#fileIn2"]) $(id).addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
+let dragDepth = 0;
+addEventListener("dragenter", e => { if ([...(e.dataTransfer?.types||[])].includes("Files")){ dragDepth++; $("#overlay").hidden = false; } });
+addEventListener("dragleave", () => { dragDepth = Math.max(0, dragDepth-1); if (!dragDepth) $("#overlay").hidden = true; });
+addEventListener("dragover", e => { if ([...(e.dataTransfer?.types||[])].includes("Files")) e.preventDefault(); });
+addEventListener("drop", e => { if (!e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); dragDepth = 0; $("#overlay").hidden = true; addFiles(e.dataTransfer.files); });
+addEventListener("paste", e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length){ e.preventDefault(); addFiles(fs); } });
+
+/* ---------- receipt cards ---------- */
+function cardHTML(r){
+  const f = r.f, c = f.category;
+  const opt = ['<option value="">Choose…</option>', ...CATS.map(x => `<option${x===c?" selected":""}>${esc(x)}</option>`)].join("");
+  const fld = (k, label, attrs="", cls="") => `<label class="f ${cls}">${label}<input data-k="${k}" value="${esc(f[k])}" ${attrs}></label>`;
+  let extra = "";
+  if (c === "Lodging") extra = fld("nights","Nights",'inputmode="numeric"') + fld("nightlyRate","Nightly room rate",'inputmode="decimal" placeholder="$"');
+  if (c === "Parking") extra = fld("days","Days",'inputmode="numeric"') + fld("dailyRate","Daily cost",'inputmode="decimal" placeholder="$"') + fld("dailyTax","Daily tax",'inputmode="decimal" placeholder="$"');
+  if (c === "Airfare") extra = `<label class="check wide"><input type="checkbox" data-k="aboveMarket"${f.aboveMarket?" checked":""}><span>Above market (needs manager approval)</span></label>`;
+  const bk = bookOf(r), sel = (k, label, list, cls="") => { const v = f[k] || ""; const all = v && !list.includes(v) ? [v, ...list] : list; return `<label class="f ${cls}">${label}<select data-k="${k}"><option value="">Choose…</option>${all.map(x => `<option${x===v?" selected":""}>${esc(x)}</option>`).join("")}</select></label>`; };
+  const more = `<details class="more"><summary>Tracker details · goes on the ${bk === "overhead" ? "Overhead" : "Travel"} tracker</summary><div class="cardf">
+      ${fld("time","Time",'type="time"')}
+      ${sel("paidWith","Paid with",listOf("paid"))}
+      ${fld("purpose", bk === "overhead" ? "Item / business purpose" : "Business purpose", 'placeholder="Defaults to the trip purpose"', "wide")}
+      ${bk === "overhead" ? fld("orderNo","Order / receipt #") + fld("fees","Other fees",'inputmode="decimal" placeholder="$"') + sel("unanetType","Unanet expense type",listOf("utypes"),"wide") : ""}
+      ${sel("status","Status",STATUSES)}
+      ${r.x && r.x.link ? `<span class="hint wide">Receipt link in your tracker: <a href="${esc(r.x.link)}" target="_blank" rel="noopener">open it</a>, save the image, and drop it here.</span>` : ""}
+    </div></details>`;
+  const taxLabel = c === "Lodging" ? "All taxes &amp; fees" : TAX_SEPARATE.includes(c) ? "Sales tax" : c === "Airfare" || c === "Parking" ? "Tax (stays in the line)" : "Tax";
+  const tags = [];
+  if (r.pages.length) tags.push(`<span class="pill ok">PNG${r.pages.length>1?` · ${r.pages.length} pages`:""}</span>`);
+  else tags.push('<span class="pill bad">No image yet</span>');
+  if (r.fromBook) tags.push('<span class="pill">From your tracker</span>');
+  if (r.kind === "heic" || r.kind === "photo") tags.push('<span class="pill">Converted from photo</span>');
+  if (r.kind === "pdf") tags.push('<span class="pill">From PDF, 200 DPI</span>');
+  if (r.blurry) tags.push('<span class="pill warn">Looks soft — retake?</span>');
+  if (r.ai) tags.push('<span class="pill ai">Read by Claude — check it</span>');
+  if (r.ai && r.ai.issue) tags.push(`<span class="pill warn">${esc(r.ai.issue)}</span>`);
+  const flagged = r.blurry || (r.ai && r.ai.issue);
+  const incomplete = !r.pages.length || !c || !f.date || (num(f.total) == null && !(c === "Parking" && num(f.dailyRate) != null));
+  const thumb = r.pages.length ? `<button class="thumb" type="button" data-act="view" aria-label="View ${esc(r.name)}"><img src="${r.pages[0].url}" alt="">${r.pages.length>1?`<span class="pg">${r.pages.length}p</span>`:""}</button>`
+    : `<label class="thumb noimg"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M11 15V5m0 0-4 4m4-4 4 4M4 15v2a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Add receipt photo<input type="file" class="sr" data-attach="${r.id}" accept="image/*,.heic,.heif,application/pdf,.pdf"></label>`;
+  return `<article class="card${incomplete ? " bad" : flagged ? " flag" : ""}" data-id="${r.id}">
+    ${thumb}
+    <div class="cardf">
+      <div class="cardh wide"><span class="fn" title="${esc(r.name)}">${esc(r.name)}</span><button class="btn small danger" type="button" data-act="del">Remove</button></div>
+      <label class="f wide">Expense type<select data-k="category">${opt}</select></label>
+      ${fld("vendor","Vendor","","wide")}
+      ${fld("date","Date",'type="date"')}
+      ${fld("total","Total paid",'inputmode="decimal" placeholder="$"')}
+      ${fld("tax", taxLabel,'inputmode="decimal" placeholder="$"')}
+      ${extra}
+      <div class="tags">${tags.join("")}</div>
+      ${more}
+    </div></article>`;
+}
+function renderCards(){
+  $("#cards").innerHTML = S.receipts.map(cardHTML).join("");
+  renderReceiptsActions();
+}
+function renderReceiptsActions(){
+  const has = S.receipts.length > 0;
+  $("#rcActions").hidden = !has;
+  $("#readBtn").hidden = !(sample && imgLimits);
+  if (has && !(sample && imgLimits)) $("#readStatus").textContent = "Fill in each card from the receipt image. Tap a picture to see it full size.";
+}
+function rerenderCard(r){ const el = $(`.card[data-id="${r.id}"]`); if (!el) return; const t = document.createElement("div"); t.innerHTML = cardHTML(r); el.replaceWith(t.firstElementChild); }
+$("#cards").addEventListener("change", async e => {
+  const id = e.target.dataset.attach; if (!id) return;
+  const r = S.receipts.find(x => x.id === +id), f = e.target.files[0]; e.target.value = ""; if (!r || !f) return;
+  try { const n = await intakeFile(f); r.pages.push(...n.pages); r.kind = n.kind; r.blurry = r.pages.some(p => p.sharp < BLUR_LIMIT); r.name = n.name; rerenderCard(r); refresh(); }
+  catch (err) { say("bot", "I couldn't read that file. Use a photo, screenshot or PDF of the receipt."); }
+});
+$("#cards").addEventListener("input", e => {
+  const k = e.target.dataset.k; if (!k) return;
+  const card = e.target.closest(".card"), r = S.receipts.find(x => x.id === +card.dataset.id); if (!r) return;
+  r.f[k] = e.target.type === "checkbox" ? e.target.checked : e.target.value; r.touched[k] = true;
+  if (k === "category"){ if (r.x) r.x.trackerCat = null; r.book = null; const bm = BOOKMAP[r.f.category]; if (bm && bm.type && !r.touched.unanetType) r.f.unanetType = bm.type; rerenderCard(r); }
+  else if (e.target.closest("details")) {}
+  else { const incomplete = !r.pages.length || !r.f.category || !r.f.date || (num(r.f.total) == null && !(r.f.category === "Parking" && num(r.f.dailyRate) != null)); card.classList.toggle("bad", incomplete); card.classList.toggle("flag", !incomplete && !!(r.blurry || (r.ai && r.ai.issue))); }
+  refresh();
+});
+$("#cards").addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const r = S.receipts.find(x => x.id === +b.closest(".card").dataset.id); if (!r) return;
+  if (b.dataset.act === "del"){ S.receipts = S.receipts.filter(x => x !== r); r.pages.forEach(p => URL.revokeObjectURL(p.url)); renderCards(); refresh(); }
+  if (b.dataset.act === "view") openLightbox(r.pages.map(p => p.url), r.name);
+});
+function openLightbox(urls, name){
+  const lb = $("#lightbox"); lb.replaceChildren();
+  const close = document.createElement("button"); close.className = "btn"; close.type = "button"; close.textContent = "Close"; close.onclick = () => lb.hidden = true;
+  lb.append(close);
+  for (const u of urls){ const i = new Image(); i.src = u; i.alt = name; lb.append(i); }
+  lb.hidden = false; close.focus();
+}
+$("#lightbox").addEventListener("click", e => { if (e.target.id === "lightbox") e.currentTarget.hidden = true; });
+addEventListener("keydown", e => { if (e.key === "Escape") $("#lightbox").hidden = true; });
+
+/* ---------- Claude reads receipts ---------- */
+async function previewBlobs(r){
+  // small copies only for reading; long screenshots are sent as top and bottom halves so totals stay legible
+  const out = [];
+  const p = r.pages[0], bmp = await createImageBitmap(p.blob);
+  const parts = (bmp.height / bmp.width > 2.6) ? [[0, Math.round(bmp.width*1.6)], [bmp.height - Math.round(bmp.width*1.6), bmp.height]] : [[0, bmp.height]];
+  for (const [y0, y1] of parts){
+    const sh = y1 - y0, k = Math.min(1, 1500 / Math.max(bmp.width, sh));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width*k); c.height = Math.round(sh*k);
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0,0,c.width,c.height); g.drawImage(bmp, 0, y0, bmp.width, sh, 0, 0, c.width, c.height);
+    out.push(await toBlob(c));
+  }
+  if (r.pages.length > 1 && r.f.category !== "Airfare"){ // last page of a folio usually has the totals
+    const last = r.pages[r.pages.length-1], b2 = await createImageBitmap(last.blob), k = Math.min(1, 1500/Math.max(b2.width,b2.height));
+    const c = document.createElement("canvas"); c.width = Math.round(b2.width*k); c.height = Math.round(b2.height*k); c.getContext("2d").drawImage(b2,0,0,c.width,c.height); out.push(await toBlob(c)); b2.close && b2.close();
+  }
+  bmp.close && bmp.close();
+  return out;
+}
+let reading = false;
+async function readReceipts(){
+  if (reading) return;
+  if (!sample || !imgLimits){ say("bot", "Reading receipts needs Claude, which isn't available in this view. Fill in each card from the picture instead."); return; }
+  const todo = S.receipts.filter(r => r.pages.length && !r.ai && (!r.f.category || num(r.f.total) == null || !r.f.date || !r.f.vendor));
+  if (!todo.length){ say("bot", "Every receipt already has a type, vendor, date and amount."); return; }
+  reading = true; $("#readBtn").disabled = true;
+  const status = say("bot", `Reading ${todo.length} receipt${todo.length>1?"s":""}… Claude will ask you to allow this the first time.`);
+  const max = Math.max(1, imgLimits.maxCount || 5);
+  let done = 0, failed = 0;
+  const t = S.trip;
+  try {
+    let i = 0;
+    while (i < todo.length){
+      const batch = [], imgs = [], map = [];
+      while (i < todo.length){
+        const r = todo[i], b = await previewBlobs(r);
+        if (imgs.length + b.length > max && batch.length) break;
+        const from = imgs.length + 1; imgs.push(...b.slice(0, max - imgs.length)); map.push(`Receipt ${batch.length+1}: image${b.length>1?"s":""} ${from}${b.length>1?"-"+(from+b.length-1):""}${b.length>1?" (parts of the same receipt)":""}`); batch.push(r); i++;
+        if (imgs.length >= max) break;
+      }
+      const prompt = `These images are travel expense receipts from a work trip${t.start ? ` (${t.start} to ${t.end}${t.loc ? ", " + t.loc : ""})` : ""}. ${map.join("; ")}.
+For each receipt, read what is printed. Do not guess: use null for anything you cannot read.
+Reply with only a JSON array, one object per receipt in order:
+{"n":1,"category":one of ${JSON.stringify(CATS)},"vendor":"short vendor name","date":"YYYY-MM-DD (transaction or checkout date)","total":number (grand total paid),"tax":number or null (all taxes and fees; for hotels include occupancy, lodging, tourism and daily fees),"nights":number or null (hotels),"nightlyRate":number or null (hotel room rate per night before tax),"days":number or null (parking),"dailyRate":number or null (parking),"dailyTax":number or null (parking),"issue":null or a short sentence if this is not the real receipt (for example an Uber charge summary instead of the trip receipt, an Amazon confirmation email that does not list items, a hotel reservation instead of the final folio) or the image is unreadable}`;
+      try {
+        const res = await sample.json(prompt, { images: imgs, modelTier: "default" });
+        const arr = Array.isArray(res) ? res : (res && Array.isArray(res.receipts) ? res.receipts : []);
+        batch.forEach((r, j) => {
+          const o = arr.find(x => +x.n === j+1) || arr[j];
+          if (!o){ failed++; return; }
+          const set = (k, v) => { if (v === null || v === undefined || v === "" || r.touched[k]) return; if (r.f[k] !== "" && r.f[k] != null && k !== "category" && k !== "date") return; r.f[k] = typeof v === "number" ? String(v) : String(v); };
+          if (o.category && CATS.includes(o.category)) set("category", o.category);
+          set("vendor", o.vendor); if (o.date && /^\d{4}-\d{2}-\d{2}$/.test(o.date)) set("date", o.date);
+          for (const k of ["total","tax","nights","nightlyRate","days","dailyRate","dailyTax"]) if (typeof o[k] === "number" && isFinite(o[k])) set(k, o[k]);
+          r.ai = { issue: o.issue ? String(o.issue).slice(0, 160) : null }; done++;
+        });
+      } catch (e) {
+        failed += batch.length;
+        if (e && (e.code === "not_granted" || e.code === "sampling_disabled" || e.code === "images_unavailable")){ if (e.code !== "images_unavailable") sample = null; imgLimits = null; break; }
+        if (e && e.code === "rate_limited") break;
+      }
+      status.replaceChildren(rich(`Reading receipts… ${done + failed} of ${todo.length}`));
+    }
+  } finally { reading = false; $("#readBtn").disabled = false; }
+  renderCards(); refresh();
+  const issues = S.receipts.filter(r => r.ai && r.ai.issue).length;
+  let msg = `Read **${done}** receipt${done!==1?"s":""}.`;
+  if (failed) msg += ` ${failed} couldn't be read; fill ${failed>1?"those":"that one"} in by hand.`;
+  msg += "\nCheck every card against its picture before you build the packet. You're responsible for the numbers.";
+  if (issues) msg += `\n- ${issues} may not be the real receipt. Open the card to see why.`;
+  status.replaceChildren(rich(msg));
+  const a = document.createElement("div"); a.className = "acts";
+  for (const [label, fn, p] of [["Check the cards", () => showTab("receipts"), true], ["Review lines", () => showTab("review")]]){ const b = document.createElement("button"); b.type = "button"; b.className = "btn small" + (p ? " primary" : ""); b.textContent = label; b.onclick = fn; a.append(b); }
+  status.parentElement.append(a);
+}
+$("#readBtn").onclick = () => readReceipts();
+
+/* ---------- review ---------- */
+function renderReview(){
+  const m = model(), cks = checks(m);
+  $("#stats").innerHTML = `<div class="stat"><span>Lines</span><b>${m.lines.length}</b></div>
+    <div class="stat"><span>Receipted</span><b>${money(m.receipted)}</b></div>
+    <div class="stat"><span>M&amp;IE</span><b>${money(m.mieTotal)}</b></div>
+    <div class="stat"><span>Trip total</span><b>${money(m.total)}</b></div>`;
+  $("#checks").innerHTML = cks.map(c => `<li class="${c.lvl}"><b>${c.lvl === "bad" ? "Fix" : c.lvl === "warn" ? "Check" : "OK"}</b><span>${esc(c.text)}</span></li>`).join("");
+  const rows = m.lines.map(l => `<tr class="${l.mie ? "mie" : ""}"><td class="n">${l.no}</td><td>${l.date ? dow(l.date) + " " + fmtD(l.date) : "No date"}</td><td>${esc(l.cat)}</td><td>${esc(l.vendor)}${l.detail ? `<div class="hint">${esc(l.detail)}</div>` : ""}</td><td class="n">${money(l.amount)}</td><td class="n">${l.tax ? money(l.tax) : "—"}</td><td class="hint">${esc(l.how)}</td></tr>`).join("");
+  $("#linesTbl").innerHTML = `<thead><tr><th class="n">#</th><th>Date</th><th>Expense type</th><th>Vendor / detail</th><th class="n">Amount</th><th class="n">Tax box</th><th>How to enter</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="7" class="hint">No lines yet. Add trip dates and receipts.</td></tr>'}</tbody>
+    ${m.lines.length ? `<tfoot><tr><td colspan="4">Total</td><td class="n">${money(r2(m.lines.reduce((s,l)=>s+(l.amount||0),0)))}</td><td class="n">${money(r2(m.lines.reduce((s,l)=>s+(l.tax||0),0)))}</td><td>${money(m.total)} with tax</td></tr></tfoot>` : ""}`;
+}
+function refresh(){
+  $("#rcCount").textContent = S.receipts.length;
+  const m = model(), cks = checks(m), nBad = cks.filter(c => c.lvl === "bad").length, nWarn = cks.filter(c => c.lvl === "warn").length;
+  $("#ckCount").textContent = nBad ? `${nBad} to fix` : nWarn ? `${nWarn} to check` : "";
+  const steps = $$(".step");
+  steps[0].classList.toggle("done", !!(perDiem() && num(S.trip.mie) != null && S.trip.first && S.trip.last));
+  steps[1].classList.toggle("done", S.receipts.length > 0 && S.receipts.every(r => r.pages.length && r.f.category && r.f.date && (num(r.f.total) != null || num(r.f.dailyRate) != null)));
+  steps[2].classList.toggle("done", S.receipts.length > 0 && !nBad);
+  steps[3].classList.toggle("done", !!S.built);
+  if (S.built) { S.built.stale = true; }
+  if (tab === "review") renderReview();
+  if (tab === "packet") renderPacket();
+}
+
+/* ---------- packet: summary page + lossless PDF ---------- */
+function renderPacket(){
+  $("#pdfName").textContent = pdfName();
+  $("#p1upWrap").hidden = !$("#p1un").checked;
+  if (S.built && S.built.stale) $("#buildStatus").textContent = "Something changed since the last build. Build again before saving.";
+}
+for (const r of $$('input[name="p1"]')) r.addEventListener("change", renderPacket);
+$("#p1file").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  $("#p1status").textContent = "Converting…";
+  try { const r = await intakeFile(f); S.p1 = r.pages[0]; $("#p1status").textContent = `${f.name} · PNG ${r.pages[0].w}×${r.pages[0].h}`; }
+  catch (err) { $("#p1status").textContent = "Couldn't read that file. Use a screenshot or PDF."; }
+});
+async function summaryPages(m, firstReceiptPage, pageOf){
+  await document.fonts.ready.catch(()=>{});
+  try { await Promise.all([document.fonts.load('700 40px "Barlow Semi Condensed"'), document.fonts.load('400 20px "Source Sans 3"'), document.fonts.load('600 20px "Source Sans 3"'), document.fonts.load('400 18px "JetBrains Mono"')]); } catch(e){}
+  const W = 1275, H = 1650, M = 84, RH = 38;
+  const DISP = '"Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif', BODY = '"Source Sans 3", "Segoe UI", Arial, sans-serif', MONO = '"JetBrains Mono", Consolas, monospace';
+  const INK = "#15211D", MUTED = "#5A6964", LINE = "#CBD5D1", ACC = "#0E5E5A", SOFT = "#EEF3F1";
+  const t = S.trip, pd = m.pd;
+  const cols = [ {k:"no",w:50,r:true}, {k:"date",w:170}, {k:"cat",w:190}, {k:"vendor",w:380}, {k:"amount",w:150,r:true}, {k:"tax",w:110,r:true}, {k:"page",w:57,r:true} ];
+  const head = { no:"#", date:"Date", cat:"Type", vendor:"Vendor / detail", amount:"Amount", tax:"Tax box", page:"Pg" };
+  const { chunks, firstTop, otherTop } = paginate(m);
+  const n = chunks.length, blobs = [];
+  const fit = (g, s, w) => { s = String(s ?? ""); if (g.measureText(s).width <= w) return s; while (s.length > 1 && g.measureText(s + "…").width > w) s = s.slice(0, -1); return s + "…"; };
+  for (let p = 0; p < n; p++){
+    const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0,0,W,H); g.textBaseline = "alphabetic";
+    let y;
+    if (p === 0){
+      g.fillStyle = ACC; g.font = `700 22px ${DISP}`; g.fillText("TRIP EXPENSE SUMMARY", M, M + 18);
+      g.fillStyle = INK; g.font = `700 46px ${DISP}`; g.fillText(fit(g, [t.first, t.last].filter(Boolean).join(" ") || "Name not set", W-2*M), M, M + 70);
+      g.font = `400 24px ${BODY}`; g.fillStyle = INK;
+      g.fillText(fit(g, [t.report ? `Expense report ${t.report}` : "Report number not set", t.loc].filter(Boolean).join("  ·  "), W-2*M), M, M + 110);
+      g.fillStyle = MUTED; g.fillText(pd ? `${dow(t.start)} ${fmtD(t.start)}  to  ${dow(t.end)} ${fmtD(t.end)}  ·  ${pd.nights} night${pd.nights!==1?"s":""}` : "Travel dates not set", M, M + 144);
+      // per diem box
+      const bx = M, by = M + 175, bw = W - 2*M, bh = 150, cw = bw / 4;
+      g.fillStyle = SOFT; g.fillRect(bx, by, bw, bh); g.strokeStyle = LINE; g.lineWidth = 1.5; g.strokeRect(bx, by, bw, bh);
+      const cells = [["GSA lodging / night", money(pd?.cap)], ["GSA M&IE full day", money(pd?.mie)], ["M&IE travel day (75%)", pd?.mie != null ? money(r2(pd.mie*0.75)) : "—"], ["Max allowable", pd && pd.lodgingMax != null && pd.mieTotal != null ? money(r2(pd.lodgingMax + pd.mieTotal)) : "—"]];
+      cells.forEach(([k, v], j) => { const x = bx + j*cw + 22; g.fillStyle = MUTED; g.font = `600 18px ${BODY}`; g.fillText(k.toUpperCase(), x, by + 48); g.fillStyle = INK; g.font = `500 34px ${MONO}`; g.fillText(v, x, by + 100); if (j) { g.strokeStyle = LINE; g.beginPath(); g.moveTo(bx + j*cw, by + 20); g.lineTo(bx + j*cw, by + bh - 20); g.stroke(); } });
+      g.fillStyle = MUTED; g.font = `400 18px ${BODY}`;
+      g.fillText(fit(g, `Max allowable = lodging ${money(pd?.lodgingMax)} (${pd?.nights ?? "—"} nights × GSA) + M&IE ${money(pd?.mieTotal)} (${pd?.days.length ?? "—"} days). Lines are in date order; receipts follow in the same order.`, W-2*M), M, by + bh + 34);
+      y = firstTop;
+    } else {
+      g.fillStyle = ACC; g.font = `700 22px ${DISP}`; g.fillText("TRIP EXPENSE SUMMARY (CONTINUED)", M, M + 18);
+      g.fillStyle = MUTED; g.font = `400 20px ${BODY}`; g.fillText(fit(g, [[t.first, t.last].filter(Boolean).join(" "), t.report ? `Report ${t.report}` : ""].filter(Boolean).join("  ·  "), W-2*M), M, M + 50);
+      y = otherTop;
+    }
+    // table head
+    let x = M; g.fillStyle = INK; g.fillRect(M, y, W-2*M, RH); g.fillStyle = "#fff"; g.font = `600 17px ${BODY}`;
+    for (const col of cols){ const tx = col.r ? x + col.w - 10 : x + 10; g.textAlign = col.r ? "right" : "left"; g.fillText(head[col.k].toUpperCase(), tx, y + 25); x += col.w; }
+    y += RH;
+    chunks[p].forEach((l, idx) => {
+      if (idx % 2 === 1){ g.fillStyle = SOFT; g.fillRect(M, y, W-2*M, RH); }
+      const vals = { no: String(l.no), date: l.date ? `${dow(l.date)} ${fmtD(l.date)}` : "—", cat: l.cat, vendor: [l.vendor, l.detail].filter(Boolean).join(" · "), amount: money(l.amount), tax: l.tax ? money(l.tax) : "—", page: l.receipt && pageOf.has(l.receipt) ? String(pageOf.get(l.receipt)) : "—" };
+      let x2 = M;
+      for (const col of cols){
+        const mono = ["no","amount","tax","page","date"].includes(col.k);
+        g.font = mono ? `400 17px ${MONO}` : `400 19px ${BODY}`;
+        g.fillStyle = l.mie && col.k !== "amount" ? MUTED : INK;
+        g.textAlign = col.r ? "right" : "left";
+        g.fillText(fit(g, vals[col.k], col.w - 20), col.r ? x2 + col.w - 10 : x2 + 10, y + 26);
+        x2 += col.w;
+      }
+      g.strokeStyle = LINE; g.lineWidth = 1; g.beginPath(); g.moveTo(M, y + RH); g.lineTo(W - M, y + RH); g.stroke();
+      y += RH;
+    });
+    g.textAlign = "left";
+    if (p === n - 1){
+      y += 28;
+      const rows = [["Receipted expenses (with tax)", money(m.receipted)], ["M&IE per diem", money(m.mieTotal)], ["Trip total", money(m.total)]];
+      rows.forEach(([k, v], j) => { const last = j === rows.length - 1; g.font = `${last ? 700 : 400} ${last ? 26 : 22}px ${BODY}`; g.fillStyle = INK; g.textAlign = "left"; g.fillText(k, W - M - 560, y + 30); g.textAlign = "right"; g.font = `${last ? 500 : 400} ${last ? 26 : 22}px ${MONO}`; g.fillText(v, W - M, y + 30); if (last){ g.strokeStyle = INK; g.lineWidth = 2; g.beginPath(); g.moveTo(W - M - 560, y - 4); g.lineTo(W - M, y - 4); g.stroke(); } y += 44; });
+      g.textAlign = "left";
+    }
+    g.fillStyle = MUTED; g.font = `400 16px ${BODY}`; g.textAlign = "left";
+    g.fillText(`Summary page ${p+1} of ${n}  ·  Receipts start on page ${firstReceiptPage}`, M, H - M + 10);
+    g.textAlign = "right"; g.fillText(`Prepared ${fmtD(iso(Date.now()))}`, W - M, H - M + 10); g.textAlign = "left";
+    blobs.push({ blob: await toBlob(c), w: W, h: H });
+  }
+  return blobs;
+}
+function paginate(m){
+  // Letter page at 150 DPI: rows fill page 1 under the header, then continuation pages; totals need 190 px at the end.
+  const H = 1650, M = 84, RH = 38, firstTop = 500, otherTop = M + 80, bottom = H - M - 40, totalsH = 190;
+  const capOf = top => Math.floor((bottom - top - RH) / RH);
+  const chunks = []; let i = 0;
+  do { const top = chunks.length ? otherTop : firstTop; chunks.push(m.lines.slice(i, i + capOf(top))); i += capOf(top); } while (i < m.lines.length);
+  const lastTop = chunks.length > 1 ? otherTop : firstTop;
+  if (bottom - lastTop - RH - chunks[chunks.length-1].length * RH < totalsH) chunks.push([]);
+  return { chunks, firstTop, otherTop };
+}
+function countSummaryPages(m){ return paginate(m).chunks.length; }
+function receiptFileName(r, idx){
+  const f = r.f; return `${String(idx).padStart(2,"0")}_${slug(f.vendor || "Receipt")}_${f.date || "nodate"}_${slug(f.category || "Other")}_Receipt`;
+}
+async function build(){
+  const st = $("#buildStatus"); st.classList.remove("err");
+  const m = model();
+  if (!S.receipts.length && !m.lines.length){ st.textContent = "Add trip details and receipts first."; st.classList.add("err"); return; }
+  const useUnanet = $("#p1un").checked;
+  if (useUnanet && !S.p1){ st.textContent = "Choose your Unanet summary screenshot, or switch Page 1 to the trip timeline."; st.classList.add("err"); return; }
+  $("#buildBtn").disabled = true; st.textContent = "Building…";
+  try {
+    await loadScript(CDN.pdflib);
+    const nSum = useUnanet ? 1 : countSummaryPages(m);
+    const pageOf = new Map(); let pg = nSum + 1;
+    for (const r of m.order){ pageOf.set(r, pg); pg += r.pages.length; }
+    const sum = useUnanet ? [S.p1] : await summaryPages(m, nSum + 1, pageOf);
+    const { PDFDocument } = window.PDFLib;
+    const pdf = await PDFDocument.create();
+    pdf.setTitle(pdfName().replace(/\.pdf$/,"")); pdf.setCreator("Trip Voucher Helper"); pdf.setProducer("Trip Voucher Helper");
+    const W = 612;
+    const add = async (blob, w, h) => { const img = await pdf.embedPng(new Uint8Array(await blob.arrayBuffer())); const k = W / w; const page = pdf.addPage([W, h * k]); page.drawImage(img, { x: 0, y: 0, width: W, height: h * k }); };
+    const thumbs = [];
+    for (const s of sum){ await add(s.blob, s.w, s.h); thumbs.push({ url: URL.createObjectURL(s.blob), cap: useUnanet ? "Unanet summary" : "Summary" }); }
+    const files = receiptFiles(m);
+    for (const r of m.order){
+      for (const p of r.pages){ st.textContent = `Adding receipts… ${thumbs.length + 1 - sum.length} of ${pg - nSum - 1}`; await add(p.blob, p.w, p.h); thumbs.push({ url: p.url, cap: r.f.vendor || r.name }); }
+    }
+    const bytes = await pdf.save({ useObjectStreams: true });
+    if (S.built && S.built.sumUrls) S.built.sumUrls.forEach(u => URL.revokeObjectURL(u));
+    S.built = { pdf: new Blob([bytes], { type: "application/pdf" }), name: pdfName(), files, lines: m.lines, sumUrls: thumbs.slice(0, sum.length).map(t => t.url), stale: false };
+    $("#pages").innerHTML = thumbs.map((t, i) => `<figure><img src="${t.url}" alt="Page ${i+1}"><figcaption>${i+1} · ${esc(t.cap)}</figcaption></figure>`).join("");
+    $("#builtBox").hidden = false;
+    const mb = bytes.length / 1048576;
+    st.textContent = `Built ${thumbs.length} pages · ${mb.toFixed(1)} MB${mb > 10 ? " · Large file: if Unanet refuses it, retake the biggest photos at a lower resolution." : ""}`;
+    $$(".step")[3].classList.add("done");
+    say("bot", `Your packet is ready: **${S.built.name}**, ${thumbs.length} pages (${mb.toFixed(1)} MB). Save it from the Packet tab, attach it in Unanet as the only attachment, then save and submit the report yourself.`, [{ label: "Save PDF", primary: true, fn: () => saveFile("pdf") }]);
+  } catch (e) {
+    console.error(e); st.textContent = "The packet couldn't be built: " + (e && e.message ? e.message : "unknown error") + ". Try again; if it keeps failing, remove the last receipt you added."; st.classList.add("err");
+  } finally { $("#buildBtn").disabled = false; }
+}
+$("#buildBtn").onclick = build;
+async function offerFile(filename, data, st){
+  // one save prompt at a time; standalone copies (GitHub Pages) use an ordinary browser download
+  const standalone = !(window.claude && window.claude.use);
+  if (!downloads && !standalone) throw Object.assign(new Error("Saving files works when this page is open in Claude."), { code: "unavailable" });
+  if (!downloads){
+    const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000); return "saved";
+  }
+  const r = await downloads.save({ filename, data }); return r.status;
+}
+function saveErr(st, e){
+  st.textContent = e && e.code === "declined" ? "Save cancelled." : e && e.code === "rate_limited" ? "A save is already waiting for you. Finish that one first." : e && e.code === "unavailable" ? "Saving files works when this page is open in Claude. Open the page there to save." : "That file couldn't be saved here: " + (e && e.message ? e.message : "unknown error");
+  if (!(e && e.code === "declined")) st.classList.add("err");
+}
+function receiptFiles(m){
+  const files = []; let idx = 1;
+  for (const r of m.order){ const base = receiptFileName(r, idx++); r._files = []; r.pages.forEach((p, j) => { const name = base + (r.pages.length > 1 ? `_p${j+1}` : "") + ".png"; r._files.push(name); files.push({ name, blob: p.blob }); }); }
+  return files;
+}
+function baseFor(){ return S.built && !S.built.stale ? S.built.name.replace(/\.pdf$/, "") : pdfName().replace(/\.pdf$/, ""); }
+async function saveFile(kind){
+  const st = kind === "zip" ? $("#booksStatus") : $("#dlStatus"); st.classList.remove("err");
+  if (kind !== "zip"){
+    if (!S.built){ st.textContent = "Build the packet first."; return; }
+    if (S.built.stale){ st.textContent = "Something changed since the last build. Build again first."; st.classList.add("err"); return; }
+  }
+  try {
+    let filename, data;
+    if (kind === "pdf"){ filename = S.built.name; data = S.built.pdf; }
+    if (kind === "zip"){
+      const files = receiptFiles(model());
+      if (!files.length){ st.textContent = "No receipt images yet."; return; }
+      st.textContent = "Zipping…"; await loadScript(CDN.jszip); const z = new window.JSZip(); for (const f of files) z.file(f.name, f.blob);
+      data = await z.generateAsync({ type: "blob", compression: "STORE" }); filename = baseFor() + " receipts.zip";
+    }
+    if (kind === "csv"){
+      const q = v => `"${String(v ?? "").replace(/"/g,'""')}"`;
+      const rows = [["Line","Date","Expense type","Vendor","Detail","Amount","Tax box","How to enter"].map(q).join(",")];
+      for (const l of S.built.lines) rows.push([l.no, l.date, l.cat, l.vendor, l.detail, l.amount ?? "", l.tax || "", l.how].map(q).join(","));
+      data = rows.join("\r\n"); filename = S.built.name.replace(/\.pdf$/, "") + " lines.csv";
+    }
+    const status = await offerFile(filename, data, st);
+    st.textContent = status === "saved" ? `Saved ${filename}.` : `Sent ${filename}.`;
+  } catch (e) { saveErr(st, e); }
+}
+$("#dlPdf").onclick = () => saveFile("pdf"); $("#dlZip").onclick = () => saveFile("zip"); $("#dlCsv").onclick = () => saveFile("csv");
+
+/* ---------- trackers: the Travel and Overhead Google Sheets, round-tripped as .xlsx ----------
+   The workbook XML is edited in place: only the typed columns of this trip's rows are written.
+   Formula cells, dropdowns, formats and other trips' rows are never touched. App-only numbers
+   (nights, rates, receipt file names) ride along in a hidden "_voucher_app" sheet. */
+const XNS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const RELNS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const PKGNS = "http://schemas.openxmlformats.org/package/2006/relationships";
+const CTNS = "http://schemas.openxmlformats.org/package/2006/content-types";
+const APP_SHEET = "_voucher_app";
+const EMBED = {}; // the hosted Claude copy carries the blank templates here (base64); the GitHub copy fetches templates/
+const NOF = { createFolders: false };
+const BOOK = {
+  travel: { label: "Travel", sheet: "Expenses", cols: "BCDEFGHIJKLMNOPQR".split(""), r0: 2, r1: 301, dates: ["B","Q"], link: "N", template: "templates/Travel_Expense_Tracker_Template.xlsx", file: "Travel Expense Tracker" },
+  overhead: { label: "Overhead", sheet: "Purchases", cols: "BCDEFGHIJKLMPQRSTUVW".split(""), r0: 2, r1: 301, dates: ["B","V"], link: "S", template: "templates/Overhead_Expense_Tracker_Template.xlsx", file: "Overhead Expense Tracker" }
+};
+const xparse = t => new DOMParser().parseFromString(t, "application/xml");
+const xstr = d => { let t = new XMLSerializer().serializeToString(d); if (!t.startsWith("<?xml")) t = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + t; return t; };
+const kids = (el, name) => [...el.children].filter(c => c.localName === name);
+const colN = c => [...c].reduce((n, ch) => n*26 + ch.charCodeAt(0) - 64, 0);
+const colL = n => { let t = ""; while (n > 0){ const m = (n-1) % 26; t = String.fromCharCode(65+m) + t; n = Math.floor((n-1)/26); } return t; };
+const splitRef = ref => { const m = /^([A-Z]+)(\d+)$/.exec(ref); return [m[1], +m[2]]; };
+const toSerial = isoD => { const t = dUTC(isoD); return t == null ? "" : t / 86400000 + 25569; };
+const fromSerial = v => typeof v === "number" && v > 0 ? iso(Math.round((Math.floor(v) - 25569) * 86400000)) : (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0,10) : "");
+const toFrac = hm => { const m = /^(\d{1,2}):(\d{2})/.exec(hm || ""); return m ? r6((+m[1]*60 + +m[2]) / 1440) : ""; };
+const r6 = n => Math.round(n * 1e12) / 1e12;
+const fromFrac = v => { if (typeof v !== "number") return ""; const f = v - Math.floor(v); if (f <= 0) return ""; const mins = Math.round(f * 1440); return `${String(Math.floor(mins/60) % 24).padStart(2,"0")}:${String(mins % 60).padStart(2,"0")}`; };
+const vkey = s => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const traveler = () => [S.trip.first, S.trip.last].map(x => (x || "").trim()).filter(Boolean).join(" ");
+
+async function openBook(buf, fileName){
+  await loadScript(CDN.jszip);
+  const z = await window.JSZip.loadAsync(buf);
+  if (!z.file("xl/workbook.xml")) throw new Error("not a spreadsheet");
+  const wbx = xparse(await z.file("xl/workbook.xml").async("string"));
+  const rels = xparse(await z.file("xl/_rels/workbook.xml.rels").async("string"));
+  const relMap = {}; for (const r of rels.documentElement.children) relMap[r.getAttribute("Id")] = r.getAttribute("Target");
+  const sheets = {};
+  for (const sh of wbx.getElementsByTagNameNS(XNS, "sheet")){
+    const t = relMap[sh.getAttributeNS(RELNS, "id")] || "";
+    sheets[sh.getAttribute("name")] = t.startsWith("/") ? t.slice(1) : "xl/" + t.replace(/^\.\//, "");
+  }
+  const ss = [], ssf = z.file("xl/sharedStrings.xml");
+  if (ssf){ const d = xparse(await ssf.async("string")); for (const si of d.getElementsByTagNameNS(XNS, "si")) ss.push([...si.getElementsByTagNameNS(XNS, "t")].map(t => t.textContent).join("")); }
+  const kind = sheets.Expenses && sheets.Trips ? "travel" : sheets.Purchases ? "overhead" : null;
+  return { z, wbx, rels, sheets, ss, kind, fileName, docs: {} };
+}
+async function sheetOf(book, name){
+  if (book.docs[name]) return book.docs[name];
+  const path = book.sheets[name]; if (!path || !book.z.file(path)) return null;
+  const doc = xparse(await book.z.file(path).async("string"));
+  const sd = doc.getElementsByTagNameNS(XNS, "sheetData")[0];
+  const rows = new Map(); for (const r of kids(sd, "row")) rows.set(+r.getAttribute("r"), r);
+  return book.docs[name] = { doc, sd, rows, path, styles: {} };
+}
+function cellEl(sh, ref, create){
+  const [col, rn] = splitRef(ref);
+  let row = sh.rows.get(rn);
+  if (!row){
+    if (!create) return null;
+    row = sh.doc.createElementNS(XNS, "row"); row.setAttribute("r", String(rn));
+    let next = null, nk = Infinity; for (const [k, el] of sh.rows) if (k > rn && k < nk){ nk = k; next = el; }
+    sh.sd.insertBefore(row, next); sh.rows.set(rn, row);
+  }
+  let before = null;
+  for (const c of kids(row, "c")){ const r = c.getAttribute("r"); if (r === ref) return c; if (r && colN(splitRef(r)[0]) > colN(col)){ before = c; break; } }
+  if (!create) return null;
+  const c = sh.doc.createElementNS(XNS, "c"); c.setAttribute("r", ref);
+  if (!(col in sh.styles)){ const c2 = rn !== 2 ? cellEl(sh, col + "2", false) : null; sh.styles[col] = c2 ? c2.getAttribute("s") : null; }
+  if (sh.styles[col]) c.setAttribute("s", sh.styles[col]);
+  row.insertBefore(c, before); return c;
+}
+function cellVal(book, c){
+  if (!c) return null;
+  const t = c.getAttribute("t");
+  if (t === "inlineStr"){ const is = kids(c, "is")[0]; return is ? [...is.getElementsByTagNameNS(XNS, "t")].map(x => x.textContent).join("") : ""; }
+  const v = kids(c, "v")[0]; if (!v) return null;
+  const tx = v.textContent;
+  if (t === "s") return book.ss[+tx] ?? "";
+  if (t === "str" || t === "e") return tx;
+  if (t === "b") return tx === "1";
+  const n = parseFloat(tx); return isFinite(n) ? n : tx;
+}
+function readCell(book, sh, ref){ return cellVal(book, cellEl(sh, ref, false)); }
+function writeCell(sh, ref, val){
+  const has = val !== null && val !== undefined && val !== "";
+  const c = cellEl(sh, ref, has); if (!c) return;
+  if (kids(c, "f").length) return; // never overwrite a formula
+  while (c.firstChild) c.removeChild(c.firstChild);
+  c.removeAttribute("t");
+  if (!has) return;
+  if (typeof val === "number"){ const v = sh.doc.createElementNS(XNS, "v"); v.textContent = String(val); c.append(v); }
+  else { c.setAttribute("t", "inlineStr"); const is = sh.doc.createElementNS(XNS, "is"), t = sh.doc.createElementNS(XNS, "t"); t.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve"); t.textContent = String(val); is.append(t); c.append(is); }
+}
+function clearSpills(sh){
+  // array formulas re-spill on import; stale copies of their old results are dropped so they can't block the spill
+  for (const f of [...sh.doc.getElementsByTagNameNS(XNS, "f")]){
+    const ref = f.getAttribute("t") === "array" && f.getAttribute("ref"); if (!ref || !ref.includes(":")) continue;
+    const [a, b] = ref.split(":"), [c1, r1] = splitRef(a), [c2, rr2] = splitRef(b);
+    for (let r = r1; r <= rr2; r++) for (let k = colN(c1); k <= colN(c2); k++){
+      const ref2 = colL(k) + r; if (ref2 === a) continue;
+      const c = cellEl(sh, ref2, false); if (c && !kids(c, "f").length){ while (c.firstChild) c.removeChild(c.firstChild); c.removeAttribute("t"); }
+    }
+  }
+}
+function dropLinks(sh, refs){
+  for (const h of [...sh.doc.getElementsByTagNameNS(XNS, "hyperlink")]) if (refs.has(h.getAttribute("ref"))) h.remove();
+  for (const hs of [...sh.doc.getElementsByTagNameNS(XNS, "hyperlinks")]) if (!kids(hs, "hyperlink").length) hs.remove();
+}
+function readTable(book, sh, spec){
+  const out = [];
+  for (let r = spec.r0; r <= spec.r1; r++){
+    const o = { _row: r }; let any = false;
+    for (const c of spec.cols){ const v = readCell(book, sh, c + r); if (v !== null && v !== "") { o[c] = v; any = true; } }
+    o._empty = !any; out.push(o);
+  }
+  return out;
+}
+async function readList(book, sheet, col, r0, r1){
+  const sh = await sheetOf(book, sheet); if (!sh) return [];
+  const out = []; for (let r = r0; r <= r1; r++){ const v = readCell(book, sh, col + r); if (v != null && v !== "") out.push(String(v).trim()); } return out;
+}
+async function addToList(book, sheet, col, r0, r1, value, extra){
+  if (!value) return true;
+  const sh = await sheetOf(book, sheet); if (!sh) return false;
+  let empty = null;
+  for (let r = r0; r <= r1; r++){
+    const v = readCell(book, sh, col + r);
+    if (v == null || v === ""){ if (empty == null) empty = r; continue; }
+    if (String(v).trim().toLowerCase() === String(value).trim().toLowerCase()) return true;
+  }
+  if (empty == null) return false;
+  writeCell(sh, col + empty, value); for (const [c, v] of Object.entries(extra || {})) writeCell(sh, c + empty, v);
+  return true;
+}
+async function appSheet(book, create){
+  if (book.sheets[APP_SHEET]) return sheetOf(book, APP_SHEET);
+  if (!create) return null;
+  let n = 1; while (book.z.file(`xl/worksheets/sheet${n}.xml`)) n++;
+  const path = `xl/worksheets/sheet${n}.xml`;
+  book.z.file(path, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="${XNS}"><sheetData/></worksheet>`, NOF);
+  const ids = new Set([...book.rels.documentElement.children].map(r => r.getAttribute("Id"))); let rid = "rIdTvh"; while (ids.has(rid)) rid += "x";
+  const rel = book.rels.createElementNS(PKGNS, "Relationship"); rel.setAttribute("Id", rid); rel.setAttribute("Type", RELNS + "/worksheet"); rel.setAttribute("Target", `worksheets/sheet${n}.xml`); book.rels.documentElement.append(rel);
+  book.z.file("xl/_rels/workbook.xml.rels", xstr(book.rels), NOF);
+  const sheetsEl = book.wbx.getElementsByTagNameNS(XNS, "sheets")[0];
+  const maxId = Math.max(0, ...[...sheetsEl.children].map(x => +x.getAttribute("sheetId") || 0));
+  const el = book.wbx.createElementNS(XNS, "sheet"); el.setAttribute("name", APP_SHEET); el.setAttribute("sheetId", String(maxId + 1)); el.setAttribute("state", "hidden"); el.setAttributeNS(RELNS, "r:id", rid); sheetsEl.append(el);
+  const ctf = "[Content_Types].xml", ct = xparse(await book.z.file(ctf).async("string"));
+  const o = ct.createElementNS(CTNS, "Override"); o.setAttribute("PartName", "/" + path); o.setAttribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"); ct.documentElement.append(o);
+  book.z.file(ctf, xstr(ct), NOF);
+  book.sheets[APP_SHEET] = path;
+  return sheetOf(book, APP_SHEET);
+}
+async function readApp(book){
+  const sh = await appSheet(book, false), out = []; if (!sh) return out;
+  for (const r of [...sh.rows.keys()].sort((a,b) => a-b)){ if (r === 1) continue; const trip = readCell(book, sh, "A"+r), kind = readCell(book, sh, "B"+r), sig = readCell(book, sh, "C"+r), json = readCell(book, sh, "D"+r);
+    if (!trip || !kind) continue; let data = null; try { data = JSON.parse(json || "null"); } catch(e) {} out.push({ trip: String(trip), kind: String(kind), sig: String(sig || ""), data }); }
+  return out;
+}
+async function writeApp(book, recs){
+  const sh = await appSheet(book, true);
+  const old = await readApp(book), keep = old.filter(r => r.trip !== S.trip.tripId);
+  const all = [...keep, ...recs];
+  writeCell(sh, "A1", "Trip ID"); writeCell(sh, "B1", "Kind"); writeCell(sh, "C1", "Match key"); writeCell(sh, "D1", "Trip Voucher Helper data (used to pick up where you left off; safe to ignore)");
+  const last = Math.max(1, ...sh.rows.keys());
+  for (let r = 2; r <= Math.max(last, all.length + 1); r++){ const x = all[r-2]; writeCell(sh, "A"+r, x ? x.trip : ""); writeCell(sh, "B"+r, x ? x.kind : ""); writeCell(sh, "C"+r, x ? x.sig : ""); writeCell(sh, "D"+r, x ? JSON.stringify(x.data) : ""); }
+}
+async function finishBook(book){
+  for (const sh of Object.values(book.docs)){ clearSpills(sh); book.z.file(sh.path, xstr(sh.doc), NOF); }
+  const cp = book.wbx.getElementsByTagNameNS(XNS, "calcPr")[0]; if (cp) cp.setAttribute("fullCalcOnLoad", "1");
+  book.z.file("xl/workbook.xml", xstr(book.wbx), NOF);
+  return book.z.generateAsync({ type: "blob", compression: "DEFLATE", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+const sigOf = (date, vendor, amount) => `${date || ""}|${vkey(vendor)}|${amount == null || amount === "" ? "" : r2(+amount).toFixed(2)}`;
+const LISTS = { paid: null, utypes: null };
+function listOf(k){ return LISTS[k] || (k === "paid" ? DEF_PAID : DEF_UTYPES); }
+async function refreshLists(){
+  const paid = [], ut = [];
+  if (S.books.travel) paid.push(...await readList(S.books.travel, "Settings", "E", 5, 20));
+  if (S.books.overhead){ paid.push(...await readList(S.books.overhead, "Settings", "F", 5, 30)); ut.push(...await readList(S.books.overhead, "Settings", "P", 5, 30)); }
+  const uniq = a => [...new Set(a.filter(x => x && x !== "GSA per diem"))];
+  LISTS.paid = paid.length ? uniq(paid) : null; LISTS.utypes = ut.length ? uniq(ut) : null;
+}
+
+/* ----- reading a trip back in ----- */
+async function tripsInBooks(){
+  const trips = new Map(), add = (id, o) => { id = String(id || "").trim(); if (!id) return; trips.set(id, { id, ...(trips.get(id) || {}), ...o }); };
+  const tb = S.books.travel, ob = S.books.overhead;
+  if (tb){
+    const sh = await sheetOf(tb, "Trips");
+    for (let r = 2; r <= 61; r++){ const id = readCell(tb, sh, "A"+r); if (id) add(id, { start: fromSerial(readCell(tb, sh, "B"+r)), end: fromSerial(readCell(tb, sh, "C"+r)), dest: readCell(tb, sh, "D"+r) || "" }); }
+    const ex = await sheetOf(tb, "Expenses"); for (const row of readTable(tb, ex, BOOK.travel)) if (row.D) add(row.D, {});
+  }
+  if (ob){
+    const st = await sheetOf(ob, "Settings"); for (let r = 5; r <= 60; r++){ const id = readCell(ob, st, "K"+r); if (id) add(id, trips.get(String(id).trim())?.dest ? {} : { dest: readCell(ob, st, "L"+r) || "" }); }
+    const pu = await sheetOf(ob, "Purchases"); for (const row of readTable(ob, pu, BOOK.overhead)) if (row.D) add(row.D, {});
+  }
+  return [...trips.values()].sort((a, b) => (b.start || "").localeCompare(a.start || "") || b.id.localeCompare(a.id));
+}
+async function nextTripId(){
+  const ids = (await tripsInBooks()).map(t => t.id);
+  let n = 0; for (const id of ids){ const m = /^T-(\d+)$/i.exec(id); if (m) n = Math.max(n, +m[1]); }
+  return `T-${String(n + 1).padStart(3, "0")}`;
+}
+async function importBooks(files){
+  const got = [];
+  for (const f of files){
+    try {
+      const book = await openBook(await f.arrayBuffer(), f.name);
+      if (!book.kind){ say("bot", `**${f.name}** doesn't look like a Travel or Overhead tracker. It needs an Expenses and Trips tab (Travel) or a Purchases tab (Overhead).`); continue; }
+      S.books[book.kind] = book; got.push(book);
+    } catch (e) { console.error(e); say("bot", `I couldn't open **${f.name}**. In Google Sheets use File → Download → Microsoft Excel (.xlsx), then drop that file here.`); }
+  }
+  if (!got.length) return;
+  await refreshLists(); renderBooks();
+  const trips = await tripsInBooks();
+  const names = got.map(b => `**${BOOK[b.kind].label}** (${b.fileName})`).join(" and ");
+  if (S.trip.tripId && trips.some(t => t.id === S.trip.tripId)){ await loadTrip(S.trip.tripId, got.map(b => b.kind)); say("bot", `Loaded ${names}. I added its ${S.trip.tripId} items to this trip.`); return; }
+  const acts = trips.slice(0, 6).map((t, i) => ({ label: `${t.id}${t.dest ? " · " + t.dest : ""}${t.start ? " · " + fmtD(t.start) : ""}`, primary: i === 0, fn: async () => { await loadTrip(t.id); } }));
+  acts.push({ label: "Start a new trip", fn: async () => { S.trip.tripId = await nextTripId(); saveTrip(); bindTripValues(); refresh(); say("bot", `New trip **${S.trip.tripId}**. Fill in the Trip tab and drop the receipts. It's added to your trackers when you save.`); showTab("trip"); } });
+  say("bot", trips.length ? `Loaded ${names}. Which trip are you working on?` : `Loaded ${names}. It has no trips yet, so this will be its first.`, acts);
+}
+async function loadTrip(id, only){
+  const kinds = only || ["travel", "overhead"];
+  const t = S.trip;
+  if (t.tripId !== id){ for (const k of ["report","loc","start","end","cap","mie","project","purpose","zip","firstPrev","lastNext"]) t[k] = k === "firstPrev" || k === "lastNext" ? false : ""; }
+  t.tripId = id;
+  const added = [];
+  for (const kind of kinds){
+    const book = S.books[kind]; if (!book) continue;
+    const spec = BOOK[kind], app = (await readApp(book)).filter(x => x.trip === id);
+    const tripRec = app.find(x => x.kind === "trip");
+    if (tripRec && tripRec.data) for (const k of ["first","last","report","firstPrev","lastNext","cap","mie","loc","purpose","project","zip"]) if (tripRec.data[k] != null && tripRec.data[k] !== "") t[k] = tripRec.data[k];
+    if (kind === "travel"){
+      const sh = await sheetOf(book, "Trips");
+      for (let r = 2; r <= 61; r++) if (String(readCell(book, sh, "A"+r) || "").trim() === id){
+        const g = c => readCell(book, sh, c + r);
+        t.start = fromSerial(g("B")) || t.start; t.end = fromSerial(g("C")) || t.end; t.loc = g("D") || t.loc || "";
+        t.project = g("E") || t.project || ""; t.purpose = g("F") || t.purpose || ""; t.zip = g("O") != null ? String(g("O")) : t.zip || "";
+        if (num(g("P")) != null) t.cap = String(num(g("P"))); if (num(g("Q")) != null) t.mie = String(num(g("Q")));
+        break;
+      }
+    }
+    const items = app.filter(x => x.kind === "item");
+    const sh = await sheetOf(book, spec.sheet);
+    // items that came from this book earlier and still have no image are replaced
+    S.receipts = S.receipts.filter(r => !(r.fromBook === kind && !r.pages.length));
+    for (const row of readTable(book, sh, spec)){
+      if (row._empty || String(row.D || "").trim() !== id) continue;
+      if (row.E && !t.first && !t.last){ const parts = String(row.E).trim().split(/\s+/); t.first = parts[0] || ""; t.last = parts.slice(1).join(" "); }
+      if (kind === "travel" && row.F === "Meals" && (row.J === "GSA per diem" || /gsa per diem/i.test(String(row.G || "")))){
+        const d = fromSerial(row.B); if (d) S.mieX[d] = { status: row.O || "", report: row.P || "", reimbursedOn: row.Q || "", notes: row.R || "", time: row.C };
+        if (!t.report && row.P) t.report = String(row.P);
+        continue;
+      }
+      if (row.P && !t.report && kind === "travel") t.report = String(row.P);
+      const r = rowToItem(kind, row, items);
+      const twin = S.receipts.find(x => x.pages.length && !x.fromBook && x.f.date === r.f.date && vkey(x.f.vendor) === vkey(r.f.vendor) && Math.abs((num(x.f.total) || 0) - (num(r.f.total) || 0)) < 0.01);
+      if (twin){ for (const [k, v] of Object.entries(r.f)) if ((twin.f[k] === "" || twin.f[k] == null) && v !== "" && v != null) twin.f[k] = v; twin.x = { ...r.x, ...twin.x }; twin.fromBook = kind; twin.book = r.book; continue; }
+      S.receipts.push(r); added.push(r);
+    }
+  }
+  const adopted = adoptOrphans();
+  saveTrip(); bindTripValues(); renderTrip(); renderCards(); refresh(); renderBooks();
+  const missing = S.receipts.filter(r => !r.pages.length).length;
+  let msg = `Working on **${id}**${t.loc ? ` (${t.loc}${t.start ? `, ${fmtD(t.start)} to ${fmtD(t.end)}` : ""})` : ""}. ${added.length} item${added.length!==1?"s":""} came back from your tracker${kinds.length === 1 ? "" : "s"}.`;
+  if (adopted) msg += `\n- Matched ${adopted} receipt image${adopted !== 1 ? "s" : ""} you dropped to ${adopted !== 1 ? "their" : "its"} item${adopted !== 1 ? "s" : ""}.`;
+  if (missing) msg += `\n- ${missing} ${missing === 1 ? "has" : "have"} no receipt image here yet. Drop your receipts .zip (or the photos) and I'll match them up.`;
+  msg += "\n- M&IE days are rebuilt from the trip dates and GSA rate, so check those on the Trip tab.";
+  say("bot", msg, [{ label: "Check the cards", primary: true, fn: () => showTab("receipts") }, { label: "Trip details", fn: () => showTab("trip") }]);
+}
+function rowToItem(kind, row, appItems){
+  const f = blankF(), x = {};
+  const date = fromSerial(row.B), vendor = String(row.G ?? "");
+  f.date = date; f.vendor = vendor; f.time = fromFrac(row.C); f.paidWith = row.J ? String(row.J) : ""; f.status = row.O && kind === "travel" ? String(row.O) : row.T && kind === "overhead" ? String(row.T) : "";
+  let amount;
+  if (kind === "travel"){
+    amount = num(row.K); f.total = amount != null ? String(amount) : ""; f.purpose = row.I ? String(row.I) : "";
+    x.personal = row.L ?? ""; x.receiptFlag = row.M || ""; x.link = row.N || ""; x.reimbursedOn = row.Q ?? ""; x.notes = row.R || ""; x.report = row.P != null ? String(row.P) : ""; x.city = row.H || "";
+    const tc = String(row.F || ""); f.category = FROM_TRAVEL[tc] || "Other"; if (!FROM_TRAVEL[tc]) x.trackerCat = tc;
+  } else {
+    const sub = num(row.K) || 0, tax = num(row.L) || 0, fees = num(row.M) || 0; amount = r2(sub + tax + fees);
+    f.total = String(amount); f.tax = tax ? String(tax) : ""; f.fees = fees ? String(fees) : ""; f.purpose = row.H ? String(row.H) : ""; f.orderNo = row.I != null ? String(row.I) : ""; f.unanetType = row.Q ? String(row.Q) : "";
+    x.project = row.P || ""; x.receiptFlag = row.R || ""; x.link = row.S || ""; x.reimbursedOn = row.V ?? ""; x.notes = row.W || ""; x.report = row.U != null ? String(row.U) : "";
+    const tc = String(row.F || ""), ty = f.unanetType;
+    f.category = FROM_OVERHEAD[tc] || (tc === "Tools" ? (ty === "Tools_Power" ? "Power tools" : "Equipment") : tc === "Supplies" ? (ty === "Materials" ? "Material" : "Supplies") : "Other");
+    if (tc === "Other" || !tc) x.trackerCat = tc || "Other";
+  }
+  const sig = sigOf(date, vendor, amount);
+  const hit = appItems.find(a => a.sig === sig) || null;
+  const r = { id: ++S.seq, name: `${vendor || "Item"} (from tracker)`, kind: "tracker", pages: [], f, touched: {}, ai: null, blurry: false, x, fromBook: kind, book: kind };
+  if (hit && hit.data){
+    const d = hit.data;
+    if (d.cat && CATS.includes(d.cat)) f.category = d.cat;
+    for (const k of ["total","tax","nights","nightlyRate","days","dailyRate","dailyTax","fees"]) if (d[k] != null && d[k] !== "") f[k] = String(d[k]);
+    if (d.aboveMarket) f.aboveMarket = true;
+    if (d.files) r.files = d.files;
+    if (d.trackerCat !== undefined) x.trackerCat = d.trackerCat;
+  } else if (kind === "travel" && f.category === "Lodging"){ f.nights = ""; }
+  for (const k of Object.keys(f)) if (f[k] !== "" && f[k] != null) r.touched[k] = true;
+  return r;
+}
+async function unzipReceipts(file){
+  await loadScript(CDN.jszip);
+  const z = await window.JSZip.loadAsync(await file.arrayBuffer()), out = [];
+  const entries = Object.values(z.files).filter(e => !e.dir && !/(^|\/)(__MACOSX|\.)/.test(e.name) && /\.(png|jpe?g|heic|heif|webp|pdf)$/i.test(e.name)).sort((a,b) => a.name.localeCompare(b.name));
+  for (const e of entries){ const nm = e.name.split("/").pop(), ext = nm.split(".").pop().toLowerCase(); const type = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : ext === "heic" || ext === "heif" ? "image/heic" : ext === "webp" ? "image/webp" : "image/jpeg"; out.push(new File([await e.async("blob")], nm, { type })); }
+  if (!out.length) throw new Error("no images in zip");
+  return out;
+}
+const baseName = n => String(n || "").replace(/\.[^.]+$/, "").replace(/_p\d+$/i, "");
+function matchMissing(name){
+  // a dropped image belongs to a tracker item if the app saved it under that name, or its name carries the item's vendor and date
+  const base = baseName(name);
+  const exact = S.receipts.find(r => r.files && r.files.some(f => baseName(f) === base) && (!r.pages.length || r._from === base));
+  if (exact) return exact;
+  const lk = vkey(base);
+  return S.receipts.find(r => r.fromBook && (!r.pages.length || r._from === base) && r.f.date && lk.includes(vkey(r.f.date)) && vkey(r.f.vendor).length >= 3 && lk.includes(vkey(r.f.vendor).slice(0, 12))) || null;
+}
+function adoptOrphans(){
+  // images dropped before the trip was picked (e.g. the receipts .zip with the trackers) join their tracker items
+  let n = 0;
+  for (const o of [...S.receipts]){
+    if (!o.pages.length || o.fromBook) continue;
+    const into = matchMissing(o.name); if (!into || into === o) continue;
+    into.pages.push(...o.pages); into.kind = o.kind; into.blurry = into.pages.some(p => p.sharp < BLUR_LIMIT); into.name = o.name; into._from = baseName(o.name);
+    S.receipts = S.receipts.filter(x => x !== o); n++;
+  }
+  return n;
+}
+function renderBooks(){
+  const el = $("#bookStatus"); if (!el) return;
+  el.innerHTML = ["travel","overhead"].map(k => S.books[k] ? `<span class="pill ok">${BOOK[k].label}: ${esc(S.books[k].fileName || "new")}</span>` : "").join("") + (S.trip.tripId ? `<span class="pill">Trip ${esc(S.trip.tripId)}</span>` : "");
+}
+$("#bookIn").addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
+
+/* ----- writing the trip out ----- */
+function rowsFor(kind, m){
+  const t = S.trip, pd = m.pd, who = traveler(), out = [];
+  const status = v => v || "Not submitted";
+  for (const r of S.receipts){
+    if (bookOf(r) !== kind) continue;
+    const f = r.f, x = r.x || {}, bm = BOOKMAP[f.category] || {};
+    const receipt = r.pages.length ? "Yes" : (x.receiptFlag || "No");
+    const report = t.report || x.report || "";
+    if (kind === "travel"){
+      const ls = receiptLines(r, pd), amount = ls.length ? r2(ls.reduce((s, l) => s + (l.amount || 0) + (l.tax || 0), 0)) : num(f.total);
+      out.push({ r, sort: (f.date || "9999") + (f.time || "99:99"), sig: sigOf(f.date, f.vendor, amount), v: { B: toSerial(f.date), C: toFrac(f.time), D: t.tripId, E: who, F: x.trackerCat || bm.cat || "Other", G: f.vendor, H: x.city || t.loc || "", I: f.purpose || t.purpose || "", J: f.paidWith || "Personal Card", K: amount ?? "", L: x.personal ?? "", M: receipt, N: x.link || "", O: status(f.status), P: report, Q: x.reimbursedOn ?? "", R: x.notes || "" } });
+    } else {
+      const total = num(f.total) || 0, tax = num(f.tax) || 0, fees = num(f.fees) || 0;
+      out.push({ r, sort: (f.date || "9999") + (f.time || "99:99"), sig: sigOf(f.date, f.vendor, total), v: { B: toSerial(f.date), C: toFrac(f.time), D: t.tripId, E: who, F: x.trackerCat || bm.cat || "Other", G: f.vendor, H: f.purpose || t.purpose || "", I: f.orderNo || "", J: f.paidWith || "Personal Card", K: r2(total - tax - fees), L: tax || "", M: fees || "", P: x.project || t.project || "", Q: f.unanetType || "", R: receipt === "Yes" ? "Yes" : "No", S: x.link || "", T: status(f.status), U: report, V: x.reimbursedOn ?? "", W: x.notes || "" } });
+    }
+  }
+  if (kind === "travel" && pd && pd.mie != null){
+    for (const d of pd.days){
+      const keep = S.mieX[d.date] || {};
+      out.push({ mie: true, sort: d.date + "99:99", v: { B: toSerial(d.date), C: "", D: t.tripId, E: who, F: "Meals", G: "GSA per diem (M&IE)", H: t.loc || "", I: d.cont ? "M&IE full day (continuous travel site to site)" : t.purpose || "", J: "GSA per diem", K: d.amount, L: "", M: "No", N: "", O: status(keep.status), P: keep.report || t.report || "", Q: keep.reimbursedOn ?? "", R: keep.notes || `${d.cont ? "Continuous travel site to site, full day" : d.pct < 1 ? "Travel day" : "Full day"}: GSA M&IE ${money(pd.mie)}${d.pct < 1 ? " × 75%" : ""}${t.zip ? `; site ZIP ${t.zip}` : ""}; per diem, no receipt required` } });
+    }
+  }
+  out.sort((a, b) => a.sort.localeCompare(b.sort));
+  return out;
+}
+async function writeBook(kind, book, m){
+  const spec = BOOK[kind], t = S.trip, sh = await sheetOf(book, spec.sheet);
+  if (!sh) throw new Error(`the ${spec.sheet} tab is missing`);
+  const mine = rowsFor(kind, m), table = readTable(book, sh, spec);
+  const slots = [...table.filter(r => String(r.D || "").trim() === t.tripId).map(r => r._row), ...table.filter(r => r._empty).map(r => r._row)];
+  if (mine.length > slots.length) throw new Error(`the ${spec.sheet} tab is full (${spec.r1 - 1} rows). Start a new tracker for the year, or clear old rows`);
+  const used = new Set(table.filter(r => String(r.D || "").trim() === t.tripId).map(r => r._row));
+  const touched = new Set();
+  mine.forEach((row, i) => { const rn = slots[i]; touched.add(rn); for (const c of spec.cols) writeCell(sh, c + rn, row.v[c] ?? ""); });
+  for (const rn of used) if (!touched.has(rn)){ touched.add(rn); for (const c of spec.cols) writeCell(sh, c + rn, ""); }
+  dropLinks(sh, new Set([...touched].map(rn => spec.link + rn)));
+  // dropdown lists on Settings, so the new values aren't flagged as invalid
+  const who = traveler(), paid = [...new Set(mine.map(x => x.v.J).filter(Boolean))];
+  const owed = p => /company|direct/i.test(p) ? "No" : "Yes";
+  if (kind === "travel"){
+    await addToList(book, "Settings", "A", 5, 9, who);
+    for (const p of paid) await addToList(book, "Settings", "E", 5, 20, p, { F: owed(p) });
+    const tr = await sheetOf(book, "Trips");
+    let rn = null; for (let r = 2; r <= 61; r++){ const v = readCell(book, tr, "A"+r); if (String(v || "").trim() === t.tripId){ rn = r; break; } if ((v == null || v === "") && rn == null && !readCell(book, tr, "B"+r) && !readCell(book, tr, "D"+r)) rn = -r; }
+    if (rn == null) throw new Error("the Trips tab is full (60 trips)");
+    rn = Math.abs(rn);
+    const tv = { A: t.tripId, B: toSerial(t.start), C: toSerial(t.end), D: t.loc || "", E: t.project || "", F: t.purpose || "", O: t.zip ? (/^\d+$/.test(t.zip) ? +t.zip : t.zip) : "", P: num(t.cap) ?? "", Q: num(t.mie) ?? "" };
+    for (const [c, v] of Object.entries(tv)) writeCell(tr, c + rn, v);
+  } else {
+    await addToList(book, "Settings", "A", 5, 9, who);
+    for (const p of paid) await addToList(book, "Settings", "F", 5, 30, p, { G: owed(p) });
+    await addToList(book, "Settings", "K", 5, 60, t.tripId, { L: [t.loc, t.start ? `${fmtD(t.start)}–${fmtD(t.end)}` : ""].filter(Boolean).join(" ") });
+    if (t.project) await addToList(book, "Settings", "N", 5, 30, t.project);
+  }
+  const files = receiptFiles(m);
+  const recs = [{ trip: t.tripId, kind: "trip", sig: "", data: { first: t.first || "", last: t.last || "", report: t.report || "", firstPrev: !!t.firstPrev, lastNext: !!t.lastNext, cap: t.cap || "", mie: t.mie || "", loc: t.loc || "", purpose: t.purpose || "", project: t.project || "", zip: t.zip || "" } }];
+  for (const row of mine) if (!row.mie){ const f = row.r.f; recs.push({ trip: t.tripId, kind: "item", sig: row.sig, data: { cat: f.category, total: f.total, tax: f.tax, fees: f.fees, nights: f.nights, nightlyRate: f.nightlyRate, days: f.days, dailyRate: f.dailyRate, dailyTax: f.dailyTax, aboveMarket: !!f.aboveMarket, trackerCat: row.r.x ? row.r.x.trackerCat ?? null : null, files: row.r._files && row.r._files.length ? row.r._files : (row.r.files || null) } }); }
+  await writeApp(book, recs);
+  return { rows: mine.length, mie: mine.filter(x => x.mie).length };
+}
+let savingBooks = false;
+async function saveTrackers(){
+  const st = $("#booksStatus"); st.classList.remove("err");
+  if (savingBooks) return;
+  const t = S.trip;
+  if (!t.start || !t.end){ st.textContent = "Add the trip dates on the Trip tab first."; st.classList.add("err"); return; }
+  if (!traveler()){ st.textContent = "Add your name on the Trip tab first. The trackers use it for the Traveler column."; st.classList.add("err"); return; }
+  savingBooks = true; $("#saveBooks").disabled = true; st.textContent = "Updating trackers…";
+  const saved = [];
+  try {
+    if (!t.tripId){ t.tripId = await nextTripId(); saveTrip(); bindTripValues(); renderBooks(); }
+    const m = model();
+    const kinds = ["travel"]; if (S.books.overhead || S.receipts.some(r => bookOf(r) === "overhead")) kinds.push("overhead");
+    const outs = [];
+    for (const kind of kinds){
+      let book = S.books[kind];
+      if (!book){
+        let buf;
+        if (EMBED[kind]) buf = Uint8Array.from(atob(EMBED[kind]), ch => ch.charCodeAt(0)).buffer;
+        else { const res = await fetch(BOOK[kind].template); if (!res.ok) throw new Error(`the blank ${BOOK[kind].label} template couldn't be loaded`); buf = await res.arrayBuffer(); }
+        book = await openBook(buf, null);
+      }
+      const info = await writeBook(kind, book, m);
+      const blob = await finishBook(book);
+      // reopen from the new bytes so a second save starts clean
+      const fresh = await openBook(await blob.arrayBuffer(), book.fileName || `${BOOK[kind].file} - ${traveler()}.xlsx`);
+      S.books[kind] = fresh;
+      outs.push({ kind, name: fresh.fileName, blob, info });
+    }
+    renderBooks(); await refreshLists();
+    for (const o of outs){ st.textContent = `Saving ${o.name}…`; const res = await offerFile(o.name, o.blob, st); saved.push(o); }
+    st.textContent = `Saved ${saved.map(o => o.name).join(" and ")}.`;
+    const lines = saved.map(o => `- **${o.name}**: ${o.info.rows - o.info.mie} item${o.info.rows - o.info.mie !== 1 ? "s" : ""}${o.info.mie ? ` plus ${o.info.mie} M&IE day${o.info.mie !== 1 ? "s" : ""}` : ""} for ${t.tripId}`).join("\n");
+    say("bot", `Trackers updated:\n${lines}\nTo put them back in Google Sheets: open each tracker, File → Import → Upload, pick the file and choose **Replace spreadsheet**. First time? Upload the file to Google Drive and open it with Google Sheets.\nSave the receipt PNGs too. Next time, drop both trackers and the receipts .zip here to pick up where you left off.`, [{ label: "Save receipt PNGs (.zip)", primary: true, fn: () => saveFile("zip") }]);
+  } catch (e) {
+    console.error(e);
+    if (e && e.code) saveErr(st, e); else { st.textContent = "The trackers couldn't be updated: " + (e && e.message ? e.message : "unknown error") + "."; st.classList.add("err"); }
+    if (saved.length) st.textContent += ` (${saved.map(o => o.name).join(", ")} was saved.)`;
+  } finally { savingBooks = false; $("#saveBooks").disabled = false; }
+}
+$("#saveBooks").onclick = saveTrackers;
+
+/* ---------- start ---------- */
+bindTrip(); renderTrip(); renderChips(); refresh(); renderBooks();
+say("bot", `Back from a trip? I'll help you finish the voucher.
+- **Ask me anything** about the expense report process: tax, hotels, M&IE, receipts, the PDF.
+- **Drop all your receipts** into this chat (photos, screenshots, PDFs). I'll turn them into clear PNGs, put them in date order and build one PDF with a summary on top.
+- **Picking up a trip?** Drop your Travel and Overhead tracker spreadsheets (.xlsx) and your receipts .zip, and I'll load the trip back in.`, [{ label: "Add receipts", primary: true, fn: () => $("#fileIn").click() }, { label: "Load my trackers", fn: () => $("#bookIn").click() }, { label: "Enter trip details", fn: () => showTab("trip") }]);
+if (matchMedia("(max-width:900px)").matches) setMobile("chat");
+window.__tvh = { S, model, checks, addFiles, build, perDiem, saveTrackers, loadTrip, importBooks, tripsInBooks, openBook, writeBook, finishBook };
+})();
+</script>
+</body>
+</html>
